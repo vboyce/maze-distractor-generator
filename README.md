@@ -26,3 +26,21 @@ For json, it will return a js module.
 ## Verbose logging
 
 if you provide a logfile argument to run_stuff then it will log all the surprisals for the target word and potential distractors. Useful for debugging or for having options.
+
+## Calculating surprisal
+
+Surprisal is calculated using some model. Due to potential tokenization issues, we tokenize the prefix + " " + target word and then compare to just the prefix and then take the surprisal of the tokens beyond the prefix. This assumes that exactly how spaces are included in tokens is not relevant (which given that we mostly care about approximate surprisal seems fair).
+
+Currently, we calculate the surprisal of the real words with all punctuation and capitalization included, but we calculate the surprisal of distractors plain (all lower case, no start or end punctuation). I think this is usually a conservative choice (certainly end punctuation will always increase surprisal, start punctuation or capitals could go either way in theory).
+
+## Models that we might want to test
+
+gpt2 (124M)
+distilgpt2 (82M)
+EleutherAI/gpt-neo-125m (125m)
+facebook/opt-125m (125m)
+llama3.2-1B (1B)
+EleutherAI/pythia-160m
+bigscience/bloom-560m
+HuggingFaceTB/SmolLM-360M
+Qwen/Qwen2-0.5B

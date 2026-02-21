@@ -11,7 +11,8 @@ from output import save_delim, save_json
 
 SURPRISAL_LOG_HEADER = ["record_type", "sentence_set_id", "label", "prefix", "word", "surprisal_target", "actual_surprisal", "met_threshold"]
 
-def run_stuff(infile, outfile, logfile=None, parameters="params.txt", outformat="delim", module_name="stimuli"):
+def run_stuff(infile, outfile, logfile=None, parameters="params.txt", outformat="delim", module_name="stimuli",
+              model_override=None, backend_override=None):
     """Takes an input file, and an output file location
     Does the whole distractor thing (according to specified parameters)
     Writes in outformat
@@ -23,6 +24,8 @@ def run_stuff(infile, outfile, logfile=None, parameters="params.txt", outformat=
         parameters: Parameter file path
         outformat: Output format ('delim' or 'json')
         module_name: Name for JSON export (if outformat='json')
+        model_override: If set, use this model name instead of the one in params
+        backend_override: If set, use this backend instead of the one in params
     """
     if outformat not in ["delim", "json"]:
         raise ValueError("outfile format not understood: " + outformat)
@@ -31,8 +34,9 @@ def run_stuff(infile, outfile, logfile=None, parameters="params.txt", outformat=
     dict_class = getattr(importlib.import_module(params.get("dictionary_loc", "wordfreq_distractor")),
                          params.get("dictionary_class", "wordfreq_English_dict"))
     d = dict_class(params)
-    model_name = params.get("model", "gpt2")
-    model, tokenizer = load_surprisal_model(model_name)
+    model_name = model_override or params.get("model", params.get("model_name", "gpt2"))
+    backend_name = backend_override or params.get("backend", "transformers")
+    backend = load_surprisal_model(model_name, backend=backend_name)
     threshold_func = getattr(importlib.import_module(params.get("threshold_loc", "wordfreq_distractor")),
                              params.get("threshold_name", "get_thresholds"))
     repeats = Repeatcounter(params.get("max_repeat", 0))
@@ -50,9 +54,9 @@ def run_stuff(infile, outfile, logfile=None, parameters="params.txt", outformat=
     try:
         for ss in sents.values():
             logging.info("Processing sentence_set_id %s", ss.id)
-            ss.do_surprisals(model, tokenizer, log_writer=log_writer)
+            ss.do_surprisals(backend, log_writer=log_writer)
             ss.make_labels()
-            ss.do_distractors(model, tokenizer, d, threshold_func, params, repeats, log_writer=log_writer)
+            ss.do_distractors(backend, d, threshold_func, params, repeats, log_writer=log_writer)
     finally:
         if log_handle:
             log_handle.close()

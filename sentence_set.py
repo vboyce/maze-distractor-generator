@@ -34,13 +34,13 @@ class Sentence:
         else:
             raise ValueError("duplicate labels on sentence " + " ".join(words) + " with labels " + " ".join(labels))
 
-    def do_surprisal(self, model, tokenizer, log_writer=None, sentence_set_id=None):
+    def do_surprisal(self, backend, log_writer=None, sentence_set_id=None):
         """Get surprisals of words in sentence"""
         set_id = sentence_set_id if sentence_set_id is not None else self.id
         for i in range(1, len(self.labels)):  #we don't care about the surprisal of the first word
             lab = self.labels[i]
             prefix = " ".join(self.words[:i])
-            self.surprisal[lab] = get_surprisal(model=model, tokenizer=tokenizer, prefix=prefix, word=self.words[i])
+            self.surprisal[lab] = get_surprisal(backend=backend, prefix=prefix, word=self.words[i])
             if log_writer:
                 log_writer.writerow(["real_word", set_id, lab, prefix, self.words[i], "", self.surprisal[lab], ""])
             
@@ -63,7 +63,7 @@ class Label:
         self.prefixes.append(prefix)
         self.surprisals.append(surprisal)
 
-    def choose_distractor(self, model, tokenizer, dict, threshold_func, params, banned, sentence_set_id, log_writer=None):
+    def choose_distractor(self, backend, dict, threshold_func, params, banned, sentence_set_id, log_writer=None):
         """Given a parameters specified in params and stuff
         Find a distractor not on banned (banned=already used in same sentence set)
         That hopefully meets threshold"""
@@ -84,7 +84,7 @@ class Label:
                 good = True
                 min_surp = 100
                 for i in range(len(self.words)):  # check distractor candidate against each sentence's probs
-                    dist_surp = get_surprisal(model=model, tokenizer=tokenizer, prefix=self.prefixes[i], word=dist)
+                    dist_surp = get_surprisal(backend=backend, prefix=self.prefixes[i], word=dist)
                     if log_writer:
                         log_writer.writerow([
                             "distractor_candidate",
@@ -133,10 +133,10 @@ class Sentence_Set:
         else:
             raise ValueError("ID doesn't match for item " + str(sentence.id) + " and item " + str(self.id))
 
-    def do_surprisals(self, model, tokenizer, log_writer=None):
+    def do_surprisals(self, backend, log_writer=None):
         """Gets surprisals for the real words"""
         for sentence in self.sentences:
-            sentence.do_surprisal(model, tokenizer, log_writer=log_writer, sentence_set_id=self.id)
+            sentence.do_surprisal(backend, log_writer=log_writer, sentence_set_id=self.id)
 
     def make_labels(self):
         """Regroups the stuff in the sentence items into by-label groups"""
@@ -147,11 +147,11 @@ class Sentence_Set:
                 lab = sentence.labels[i]
                 self.labels[lab].add_sentence(sentence.words[i], " ".join(sentence.words[:i]), sentence.surprisal[lab])
 
-    def do_distractors(self, model, tokenizer, d, threshold_func, params, repeats, log_writer=None):
+    def do_distractors(self, backend, d, threshold_func, params, repeats, log_writer=None):
         """Get distractors using specified stuff"""
         banned = repeats.banned[:] #don't allow duplicate distractors within the set
         for label in self.labels.values(): #get distractors for each label
-            dist = label.choose_distractor(model, tokenizer, d, threshold_func, params, banned, self.id, log_writer)
+            dist = label.choose_distractor(backend, d, threshold_func, params, banned, self.id, log_writer)
             banned.append(dist)
             repeats.increment(dist)
         for sentence in self.sentences: #give the sentences the distractors
