@@ -1,4 +1,4 @@
-"""Surprisal model backends (transformers causal/masked, ollama, lightllm)"""
+"""Surprisal model backends (transformers causal/masked, ollama, litellm)"""
 import logging
 from backends.base import SurprisalBackend
 from backends.transformers_backend import CausalLMBackend, MaskedLMBackend
@@ -42,7 +42,7 @@ def load_surprisal_model(
             'transformers_causal' - force causal LM (GPT-2, Llama, etc.)
             'transformers_masked' - force masked LM (BERT, RoBERTa, etc.)
             'ollama'              - Ollama inference server (stub)
-            'lightllm'            - LightLLM inference server (stub)
+            'litellm'             - Any provider via liteLLM (OpenAI, Azure, vLLM, etc.)
         **kwargs: Backend-specific options (e.g. device for transformers, base_url for ollama)
 
     Returns:
@@ -61,8 +61,8 @@ def load_surprisal_model(
     elif backend == "ollama":
         from backends.ollama_backend import OllamaBackend
         return OllamaBackend(model_name, **kwargs)
-    elif backend == "lightllm":
-        from backends.lightllm_backend import LightLLMBackend
-        return LightLLMBackend(model_name, **kwargs)
+    elif backend == "litellm":
+        from backends.litellm_backend import LiteLLMBackend
+        return LiteLLMBackend(model_name, **kwargs)
     else:
         raise ValueError(f"Unknown backend: {backend}")

@@ -138,7 +138,7 @@ def get_thresholds(words):
         stripped = utils.strip_punct(word)
         lengths.append(len(stripped))
         freqs.append(get_frequency(stripped))
-    min_length = min(min(lengths)-1, 15)
+    min_length = min(min(lengths)-1, 12)
     max_length = max(max(lengths)+1, 4)
     min_freq = min(min(freqs)-1, 11)
     max_freq = max(max(freqs)+1, 3)
