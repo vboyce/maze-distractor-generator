@@ -23,7 +23,7 @@ def mock_dict(words):
     return d
 
 
-def threshold_func(words):
+def threshold_func(words, params=None):
     return (2, 10, 1, 20)
 
 

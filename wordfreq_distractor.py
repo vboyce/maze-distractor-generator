@@ -7,11 +7,62 @@ import logging
 import utils
 from distractor import distractor_dict, distractor
 
+def check_language(language):
+    """Raise if wordfreq has no frequency data for this language code."""
+    if language not in wordfreq.available_languages():
+        raise ValueError(
+            f"wordfreq has no data for language '{language}'. "
+            f"Available: {sorted(wordfreq.available_languages())}"
+        )
+
+
+def read_word_list(path):
+    """Read a word list, one word per line."""
+    with open(path, "r", encoding="utf-8") as f:
+        return [line.strip() for line in f]
+
+
 class wordfreq_dict(distractor_dict):
-    """General class of dictionaries"""
+    """Candidate distractors, with frequencies from wordfreq for params["language"]
+    (a wordfreq language code, default "en").
+
+    A word is a candidate if it is in the include list (params["include_words"]),
+    in wordfreq's vocabulary for the language, not in the exclude list
+    (params["exclude_words"]), and made only of lowercase letters (so proper
+    nouns, abbreviations and words with digits or punctuation are dropped; for
+    English, only a-z).
+
+    English defaults to curated_word_list.txt; other languages must name their
+    own include list.
+    """
 
     def __init__(self, params={}):
-        pass
+        self.language = params.get("language", "en")
+        check_language(self.language)
+        default_include = "curated_word_list.txt" if self.language == "en" else None
+        include = params.get("include_words", default_include)
+        if include is None:
+            raise ValueError(
+                f"language '{self.language}' needs its own word list: set include_words "
+                "to a file of candidate distractor words, one per line"
+            )
+        exclude = params.get("exclude_words", "exclude.txt")
+
+        freqs = wordfreq.get_frequency_dict(self.language)
+        exclusions = set(read_word_list(exclude)) if exclude is not None else set()
+        words = (set(read_word_list(include)) & set(freqs)) - exclusions
+        self.words = []
+        for word in sorted(words):
+            if self.allowed(word):
+                # we canonically calculate frequency as log occurrences / 1 billion words
+                self.words.append(distractor(word, math.log(freqs[word] * 10 ** 9)))
+
+    def allowed(self, word):
+        """Whether a word may be used as a distractor."""
+        if self.language == "en":
+            return re.match("^[a-z]+$", word) is not None
+        return word.isalpha() and word.islower()
+
     def in_dict(self, test_word):
         """Test to see if word is in dictionary"""
         for word in self.words:
@@ -56,87 +107,35 @@ class wordfreq_dict(distractor_dict):
 
 
 class wordfreq_English_dict(wordfreq_dict):
-    """Dictionary built using word freq for frequencies
-     Words need to be in wordfreq's vocab, also in include file if provided
-     and not in exclude file
-     words must be lowercase alpha only"""
+    """English-only version of wordfreq_dict, kept for parameter files that name it."""
 
     def __init__(self, params={}):
-        exclude = params.get("exclude_words", "exclude.txt")
-        include = params.get("include_words", "curated_word_list.txt")
-        dict = wordfreq.get_frequency_dict('en')
-        keys = dict.keys()
-        self.words = []
-        exclusions = []
-
-        if exclude is not None:
-            with open(exclude, "r", encoding="utf-8") as f:
-                for line in f:
-                    word = line.strip()
-                    exclusions.append(word)
-        inclusions = []
-        if include is not None:
-            with open(include, "r", encoding="utf-8") as f:
-                for line in f:
-                    word = line.strip()
-                    inclusions.append(word)
-            words = list(set(inclusions) & set(keys) - set(exclusions))
-        else:
-            words = list(set(keys) - set(exclusions))
-        for word in words:
-            if re.match("^[a-z]*$", word):
-                freq = math.log(
-                    dict[word] * 10 ** 9)  # we canonically calculate frequency as log occurrences/1 billion words
-                self.words.append(distractor(word, freq))
-
-class wordfreq_French_dict(wordfreq_dict):
-    """Dictionary built using word freq for frequencies
-     Words need to be in wordfreq's vocab, also in include file if provided
-     and not in exclude file
-     words must be lowercase alpha only"""
-
-    def __init__(self, params={}):
-        exclude = params.get("exclude_words", "exclude.txt")
-        include = params.get("include_words", "french_data/frwac_vocab.txt") #list of model's vocab
-        dict = wordfreq.get_frequency_dict('fr')
-        keys = dict.keys()
-        self.words = []
-        exclusions = []
-
-        if exclude is not None:
-            with open(exclude, "r", encoding="utf-8") as f:
-                for line in f:
-                    word = line.strip()
-                    exclusions.append(word)
-        inclusions = []
-        if include is not None:
-            with open(include, "r", encoding="utf-8") as f:
-                for line in f:
-                    word = line.strip()
-                    inclusions.append(word)
-            words = list(set(inclusions) & set(keys) - set(exclusions))
-        else:
-            words = list(set(keys) - set(exclusions))
-        for word in words:
-            if re.match("^[a-zçéâêîôûàèùëïü]*$", word): #what I believe to be a complete set of french characters
-                freq = math.log(
-                    dict[word] * 10 ** 9)  # we canonically calculate frequency as log occurrences/1 billion words
-                self.words.append(distractor(word, freq))
+        if params.get("language", "en") != "en":
+            raise ValueError(
+                "wordfreq_English_dict only supports language 'en'; "
+                "use dictionary_class: \"wordfreq_dict\" for other languages"
+            )
+        super().__init__(params)
 
 
-def get_frequency(word):
-    """"returns frequency aligned with wf dictionary"""
-    return wordfreq.zipf_frequency(word, 'en') * math.log(10)  # rescale to fit
+def get_frequency(word, language="en"):
+    """Frequency of word in language, on the same scale as the dictionary
+    (log occurrences per billion words)."""
+    return wordfreq.zipf_frequency(word, language) * math.log(10)  # rescale to fit
 
 
-def get_thresholds(words):
-    """given words, returns min and max length to use"""
+def get_thresholds(words, params=None):
+    """Given the real words at a position, return (min_length, max_length,
+    min_freq, max_freq) bounds for candidate distractors. Frequencies are for
+    params["language"] (default "en")."""
+    language = (params or {}).get("language", "en")
+    check_language(language)
     lengths = []
     freqs = []
     for word in words:
         stripped = utils.strip_punct(word)
         lengths.append(len(stripped))
-        freqs.append(get_frequency(stripped))
+        freqs.append(get_frequency(stripped, language))
     min_length = min(min(lengths)-1, 12)
     max_length = max(max(lengths)+1, 4)
     min_freq = min(min(freqs)-1, 11)

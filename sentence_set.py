@@ -77,7 +77,7 @@ class Label:
         """
         for surprisal in self.surprisals:
             self.surprisal_targets.append(max(params["min_abs"], surprisal + params["min_delta"]))
-        min_length, max_length, min_freq, max_freq = threshold_func(self.words)
+        min_length, max_length, min_freq, max_freq = threshold_func(self.words, params)
         distractor_opts = dict.get_potential_distractors(min_length, max_length, min_freq, max_freq, params)
         avoid = [strip_punct(word).lower() for word in self.words]
 

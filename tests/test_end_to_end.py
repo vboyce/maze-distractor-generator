@@ -159,3 +159,19 @@ def test_rejection_mode_with_nothing_rejected_converts_the_review_file(infile, t
     converted = tmp_path / "converted.csv"
     run(infile, str(converted), rejection_file=str(review))
     assert read_csv(converted) == read_csv(first)
+
+
+def test_non_english_run_draws_distractors_from_that_language(tmp_path):
+    import wordfreq
+    french_words = tmp_path / "fr_words.txt"
+    french_words.write_text("\n".join(wordfreq.top_n_list("fr", 5000)))
+    infile = tmp_path / "fr.csv"
+    infile.write_text("type,item_num,sentence\nx,1,Le chat dort sur le canapé.\n")
+    params = {"min_delta": 10, "min_abs": 25, "num_to_test": 20, "language": "fr",
+              "include_words": str(french_words), "exclude_words": None}
+    out = tmp_path / "out.csv"
+    with patch("main.load_surprisal_model", return_value=FakeBackend()):
+        run_stuff(str(infile), str(out), parameters=params)
+    distractors = read_csv(out)[0]["distractors"].split()[1:]
+    french = set(wordfreq.top_n_list("fr", 5000))
+    assert all(d.strip(".").lower() in french for d in distractors)

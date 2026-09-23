@@ -89,9 +89,10 @@ Parameters come from a file passed with `-p` (colon-separated `key: value` lines
 | `model` | `"gpt2"` | Model name (Hugging Face id, or a liteLLM model string). |
 | `backend` | `"transformers"` | See "Backends". |
 | `max_repeat` | `0` | Maximum times any distractor is used in the whole run (`0` = no limit). `params.txt` uses `1`. |
-| `include_words` | `"curated_word_list.txt"` | Word list distractors are drawn from. |
+| `language` | `"en"` | [wordfreq](https://github.com/rspeer/wordfreq) language code (e.g. `"fr"`, `"de"`, `"zh"`), used for word frequencies. See "Other languages". |
+| `include_words` | `"curated_word_list.txt"` for English; required otherwise | Word list distractors are drawn from. |
 | `exclude_words` | `"exclude.txt"` | Words never used as distractors. |
-| `dictionary_loc`, `dictionary_class` | `"wordfreq_distractor"`, `"wordfreq_English_dict"` | Module and class that provide candidate words and frequencies. |
+| `dictionary_loc`, `dictionary_class` | `"wordfreq_distractor"`, `"wordfreq_dict"` | Module and class that provide candidate words and frequencies. (`wordfreq_English_dict` still works, for English only.) |
 | `threshold_loc`, `threshold_name` | `"wordfreq_distractor"`, `"get_thresholds"` | Module and function that turn the real words into length/frequency bounds. |
 
 `--model` and `--backend` on the command line override the file.
@@ -142,7 +143,18 @@ For many uses a few plausible distractors don't matter much. Filtering is worth 
 
 `curated_word_list.txt` has 19.4K words of 1–14 characters, each occurring at least 2<sup>7</sup> times per billion words. They are filtered to "real" all-lower-case words, excluding offensive words and (to a lesser extent) words about violence and other sensitive topics. There are no guarantees, so review distractors for your own use. `scripts/curate_wordlist.py` is the length-filtering step used to build it. `exclude.txt` lists words that are never used. Word frequencies come from [wordfreq](https://github.com/rspeer/wordfreq).
 
-Only English is set up. `wordfreq_distractor.wordfreq_French_dict` is a starting point for French, but it needs a French word list (`include_words`) and a French model.
+### Other languages
+
+Set `language` to a [wordfreq language code](https://github.com/rspeer/wordfreq#sources-and-supported-languages), point `include_words` at a word list for that language (one word per line; there is no default outside English), and choose a model trained on the language:
+
+```
+language: "fr"
+include_words: "french_words.txt"
+exclude_words: None
+model: "<a French or multilingual Hugging Face model>"
+```
+
+Frequencies for both the candidates and the real words then come from that language. Candidates must be all-lowercase letters (accented letters are fine). An unknown language code, or a non-English language without `include_words`, is an error. Punctuation and capitalization are still copied from the real word as for English, which may not suit every language (e.g. German noun capitalization). See the docs page [A-maze in other languages](https://vboyce.github.io/maze-docs/non-english.html).
 
 ## Using it from Python
 

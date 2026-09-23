@@ -7,12 +7,13 @@ DEFAULTS = {
     "min_abs": 25,
     "num_to_test": 100,
     "dictionary_loc": "wordfreq_distractor",
-    "dictionary_class": "wordfreq_English_dict",
+    "dictionary_class": "wordfreq_dict",
     "threshold_loc": "wordfreq_distractor",
     "threshold_name": "get_thresholds",
     "model": "gpt2",
     "backend": "transformers",
     "max_repeat": 0,
+    "language": "en",
 }
 
 # Keys with no default that the dictionary class reads if present.
