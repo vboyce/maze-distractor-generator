@@ -35,30 +35,30 @@ class TestReadRejectionFile:
         f.write_text(REVIEW_CSV)
         locked, rejected = read_rejection_file(str(f))
         # item 1: label 1 is accepted (locked), label 2 is rejected
-        assert 1 in locked.get("1", {})
-        assert 2 not in locked.get("1", {})
+        assert "1" in locked.get("1", {})
+        assert "2" not in locked.get("1", {})
 
     def test_locked_distractor_value_preserved(self, tmp_path):
         f = tmp_path / "review.csv"
         f.write_text(REVIEW_CSV)
         locked, rejected = read_rejection_file(str(f))
-        assert locked["1"][1] == "whoa"
+        assert locked["1"]["1"] == "whoa"
 
-    def test_label_type_is_int(self, tmp_path):
+    def test_label_type_is_str(self, tmp_path):
         f = tmp_path / "review.csv"
         f.write_text(REVIEW_CSV)
         locked, _ = read_rejection_file(str(f))
         for item_locked in locked.values():
             for label in item_locked:
-                assert isinstance(label, int)
+                assert isinstance(label, str)
 
     def test_any_nonempty_rejected_value_counts(self, tmp_path):
         f = tmp_path / "review.csv"
         f.write_text(REVIEW_CSV_NONEMPTY_REJECTED)
         locked, rejected = read_rejection_file(str(f))
         assert "1" in rejected
-        assert 1 not in locked.get("1", {})  # label 1 rejected ("x")
-        assert 2 not in locked.get("1", {})  # label 2 rejected ("maybe")
+        assert "1" not in locked.get("1", {})  # label 1 rejected ("x")
+        assert "2" not in locked.get("1", {})  # label 2 rejected ("maybe")
 
     def test_item_with_all_accepted_not_in_rejected(self, tmp_path):
         csv_content = """\
@@ -71,5 +71,5 @@ passage,3,2,Word two,three,run,,
         locked, rejected = read_rejection_file(str(f))
         assert "3" not in rejected
         assert "3" in locked
-        assert locked["3"][1] == "dog"
-        assert locked["3"][2] == "run"
+        assert locked["3"]["1"] == "dog"
+        assert locked["3"]["2"] == "run"

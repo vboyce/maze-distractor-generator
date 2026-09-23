@@ -161,3 +161,43 @@ class TestSaveUpdatedLongform:
         save_updated_longform(outfile, str(original), {"1": ss})
         rows = read_longform(outfile)
         assert len(rows) == 2
+
+
+SHARED_LABEL_REVIEW = """\
+type,item_num,label,prefix,real_word,distractor,options,rejected
+a,1,noun,The,cat.,dog.,,yes
+b,1,noun,A big,cat,dog,,
+b,1,adj,A,big,soft,,
+"""
+
+
+def test_rejecting_one_row_of_a_shared_label_updates_every_row_with_that_label(tmp_path):
+    original = tmp_path / "review.csv"
+    original.write_text(SHARED_LABEL_REVIEW)
+    ss = Sentence_Set("1")
+    sent_a = Sentence(["The", "cat."], ["start_a", "noun"], "1", "a")
+    sent_b = Sentence(["A", "big", "cat"], ["start_b", "adj", "noun"], "1", "b")
+    for sent in (sent_a, sent_b):
+        ss.add(sent)
+    sent_a.distractors = ["x-x-x", "fox."]
+    sent_b.distractors = ["x-x-x", "soft", "fox"]
+    ss.label_options = {"noun": ["fox"], "adj": ["soft"]}
+    outfile = str(tmp_path / "updated.csv")
+    save_updated_longform(outfile, str(original), {"1": ss})
+    rows = read_longform(outfile)
+    assert [r["distractor"] for r in rows] == ["fox.", "fox", "soft"]
+
+
+# --- save_json ---
+
+def test_save_json_uses_jspsych_maze_key_names(tmp_path):
+    """The jspsych-maze demos read `sent` and `distractor` from each item."""
+    import json
+    from output import save_json
+    out = tmp_path / "stim.js"
+    save_json(str(out), {"1": make_complete_ss()}, name="stimuli")
+    text = out.read_text()
+    assert text.startswith("export const stimuli = ")
+    items = json.loads(text[len("export const stimuli = "):].rstrip().rstrip(";"))
+    assert items[0]["sent"] == "The cat sat"
+    assert items[0]["distractor"] == "x-x-x dog run"

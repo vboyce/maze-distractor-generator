@@ -97,7 +97,6 @@ def benchmark_grammaticality(
             distractors = row["distractors"]
             target_words = sentence.split()
             distractor_words = distractors.split()
-            print(row["item_num"])
             for i in range(1, len(target_words)):
                 prefix = " ".join(target_words[:i])
                 target = target_words[i]
@@ -123,6 +122,19 @@ def benchmark_grammaticality(
                     target_gram, distractor_gram,
                 ])
 
-#benchmark_grammaticality("output/bench_ns9_distilbert-base-uncased.csv", "output/bench_ns9_check_distilbert_claude.csv", model="anthropic/claude-sonnet-4-20250514")
-benchmark_grammaticality("output/bench_ns9_distilroberta-base.csv", "output/bench_ns9_check_roberta_claude.csv", model="anthropic/claude-sonnet-4-20250514")
 
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Ask an LLM (via liteLLM) whether each target word and distractor in a "
+                    "sentence-level output CSV is a grammatical continuation of its prefix."
+    )
+    parser.add_argument("infile", help="sentence-level CSV written by distract.py (--format delim)")
+    parser.add_argument("outfile", help="where to write the judgments CSV")
+    parser.add_argument("--model", default="anthropic/claude-sonnet-4-20250514",
+                        help="liteLLM model string (default: %(default)s)")
+    parser.add_argument("--api-base", default=None, help="API base URL for self-hosted providers")
+    args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    benchmark_grammaticality(args.infile, args.outfile, model=args.model, api_base=args.api_base)

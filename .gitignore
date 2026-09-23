@@ -210,3 +210,6 @@ __marimo__/
 
 # Generated benchmark/check output (regenerate via benchmark.py / check_distractors.py)
 output/
+
+# RStudio project file
+*.Rproj

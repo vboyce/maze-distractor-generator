@@ -51,8 +51,7 @@ class wordfreq_dict(distractor_dict):
                     return distractor_opts[:n]
                 distractor_opts.extend(new)
                 i += 1
-        logging.warning("Could not find enough distractors")
-        print(distractor_opts)
+        logging.warning("Could not find enough distractors: found %d of %d", len(distractor_opts), n)
         return distractor_opts
 
 
@@ -64,7 +63,7 @@ class wordfreq_English_dict(wordfreq_dict):
 
     def __init__(self, params={}):
         exclude = params.get("exclude_words", "exclude.txt")
-        include = params.get("include_words", "wiki-100k.txt")
+        include = params.get("include_words", "curated_word_list.txt")
         dict = wordfreq.get_frequency_dict('en')
         keys = dict.keys()
         self.words = []
@@ -143,7 +142,3 @@ def get_thresholds(words):
     min_freq = min(min(freqs)-1, 11)
     max_freq = max(max(freqs)+1, 3)
     return min_length, max_length, min_freq, max_freq
-
-#
-#foo=wordfreq_English_dict()
-#print(foo.get_potential_distractors(3,3,13,15, params={"num_to_test": 200}))

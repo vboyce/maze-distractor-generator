@@ -162,3 +162,35 @@ class TestDoDistractorsLocked:
             ss.do_distractors(None, mock_dict(["dog", "run"]), threshold_func, PARAMS, repeats)
         assert ss.sentences[0].distractor_sentence.startswith("x-x-x")
         assert len(ss.sentences[0].distractor_sentence.split()) == 3
+
+
+# --- Label.choose_distractor (single best candidate) ---
+
+class TestChooseDistractor:
+    def test_returns_first_candidate_that_meets_every_target(self):
+        lab = make_label()
+        def fake_surprisal(backend, prefix, word):
+            return 30.0 if word in ("run", "fast") else 5.0
+        with patch("sentence_set.get_surprisal", side_effect=fake_surprisal):
+            result = lab.choose_distractor(None, mock_dict(["dog", "run", "fast"]), threshold_func, PARAMS, [], "1")
+        assert result == "run"
+        assert lab.distractor == "run"
+
+    def test_falls_back_to_the_candidate_with_highest_surprisal(self):
+        lab = make_label()
+        surprisals = {"dog": 5.0, "run": 12.0, "fast": 9.0}
+        with patch("sentence_set.get_surprisal", side_effect=lambda backend, prefix, word: surprisals[word]):
+            result = lab.choose_distractor(None, mock_dict(["dog", "run", "fast"]), threshold_func, PARAMS, [], "1")
+        assert result == "run"
+
+    def test_skips_banned_words_and_the_real_word(self):
+        lab = make_label(word="Cat,")
+        with patch("sentence_set.get_surprisal", return_value=30.0):
+            result = lab.choose_distractor(None, mock_dict(["cat", "dog", "run"]), threshold_func, PARAMS, ["dog"], "1")
+        assert result == "run"
+
+    def test_returns_placeholder_when_no_candidates(self):
+        lab = make_label()
+        with patch("sentence_set.get_surprisal", return_value=30.0):
+            result = lab.choose_distractor(None, mock_dict([]), threshold_func, PARAMS, [], "1")
+        assert result == "x-x-x"

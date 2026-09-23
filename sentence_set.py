@@ -27,7 +27,7 @@ class Sentence:
             self.label_sentence = " ".join([str(lab) for lab in self.labels])  # labels as sentence
             self.id = id  # item number
             self.tag = tag  # group/type
-            self.distractors = ["x-x-x"]  # we probably shouldn't hard code this in this way, but whatevs
+            self.distractors = ["x-x-x"]  # the first word has no context, so it gets a placeholder distractor
             self.distractor_sentence = ""
             self.probs = {}  # using a dictionary so we can start at 1 and not 0
             self.surprisal = {}
@@ -64,9 +64,16 @@ class Label:
         self.surprisals.append(surprisal)
 
     def choose_top_n_distractors(self, n, backend, dict, threshold_func, params, banned, sentence_set_id, log_writer=None):
-        """Like choose_distractor, but returns a list of up to n best candidates (good ones first, then best fallbacks).
+        """Return up to n distractor candidates, best first.
 
-        Sets self.distractor to the first result for backwards compatibility with the assignment loop.
+        A candidate is "good" if its surprisal meets the target
+        (max(min_abs, real word's surprisal + min_delta)) after every prefix
+        with this label. Good candidates come first, in the order found; then
+        the rest, by their lowest surprisal, highest first. The search stops
+        once n good candidates are found. Candidates on `banned` and the real
+        words themselves are skipped.
+
+        Sets self.distractor to the first result ("x-x-x" if there are none).
         """
         for surprisal in self.surprisals:
             self.surprisal_targets.append(max(params["min_abs"], surprisal + params["min_delta"]))
@@ -106,50 +113,12 @@ class Label:
         return result
 
     def choose_distractor(self, backend, dict, threshold_func, params, banned, sentence_set_id, log_writer=None):
-        """Given a parameters specified in params and stuff
-        Find a distractor not on banned (banned=already used in same sentence set)
-        That hopefully meets threshold"""
-        for surprisal in self.surprisals:  # calculate desired surprisal thresholds
-            self.surprisal_targets.append(max(params["min_abs"], surprisal + params["min_delta"]))
-        # get us some distractor candidates
-        min_length, max_length, min_freq, max_freq = threshold_func(self.words)
-        distractor_opts = dict.get_potential_distractors(min_length, max_length, min_freq, max_freq, params)
-        avoid=[]
-        for word in self.words: #it's real awkward if the distractor is the same as the real word, so let's not do that
-            avoid.append(strip_punct(word).lower())
-
-        # initialize
-        best_word = "x-x-x"
-        best_min_surp = 0
-        for dist in distractor_opts:
-            if dist not in banned and dist not in avoid:  # if we've already used it in this sentence set, don't bother
-                good = True
-                min_surp = 100
-                for i in range(len(self.words)):  # check distractor candidate against each sentence's probs
-                    dist_surp = get_surprisal(backend=backend, prefix=self.prefixes[i], word=dist)
-                    if log_writer:
-                        log_writer.writerow([
-                            "distractor_candidate",
-                            sentence_set_id,
-                            self.lab,
-                            self.prefixes[i],
-                            dist,
-                            self.surprisal_targets[i],
-                            dist_surp,
-                            dist_surp >= self.surprisal_targets[i]
-                        ])
-                    if dist_surp < self.surprisal_targets[i]:
-                        good = False  # it doesn't meet the target
-                        min_surp = min(min_surp, dist_surp)  # but we should keep track of the lowest anyway
-                if good:  # stayed above all surprisal thresholds
-                    self.distractor = dist  # we're done, yay!
-                    return self.distractor
-                if min_surp > best_min_surp:  # best so far
-                    best_min_surp = min_surp
-                    best_word = dist
-        #logging.warning("Could not find a word to meet threshold for item %s, label %s, returning %s with %d min surp instead",
-        #    self.id, self.lab, best_word, best_min_surp)
-        self.distractor = best_word
+        """Choose one distractor: the first candidate that meets the surprisal
+        target in every sentence with this label, or else the candidate whose
+        lowest surprisal is highest. Candidates on `banned` (used too often, or
+        already used in this sentence set) and the real words are skipped.
+        Returns "x-x-x" if there are no candidates."""
+        self.choose_top_n_distractors(1, backend, dict, threshold_func, params, banned, sentence_set_id, log_writer)
         return self.distractor
 
 

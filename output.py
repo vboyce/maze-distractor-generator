@@ -9,14 +9,14 @@ LONGFORM_FIELDNAMES = ["type", "item_num", "label", "prefix", "real_word", "dist
 
 
 def save_delim(outfile, all_sentences):
-    '''Saves results to a file in semicolon delimited format
+    '''Saves results to a comma-separated CSV file with a header row
     basically same as the original input with another column for distractor sentence
     Arguments:
     outfile = location of a file to write to
     all_sentences: dictionary of sentence_set objects
     Returns: none
-    will write a semicolon delimited file with
-    column 1 = "tag"/condition copied over from item_to_info (from input file)
+    will write a CSV with columns type, item_num, sentence, distractors, labels:
+    column 1 = "tag"/condition copied over from the input file
     column 2 = item number
     column 3 = good sentence
     column 4 = string of distractor words in order.
@@ -41,12 +41,13 @@ def save_json(outfile, all_sentences, name="stimuli"):
     all_sentences: dictionary of sentence_set objects
     name: variable name for the exported stimuli list (optional)
     Returns: none
-    Writes a .js file with "export const stimuli = [...]" where each item has:
+    Writes a .js file with "export const <name> = [...]" where each item has:
     * item_type (tag/condition)
     * id (item number)
-    * sentence (original sentence)
+    * sent (original sentence)
     * distractor (distractor sentence)
     * labels (label string)
+    The sent/distractor names match what the jspsych-maze demos read.
     '''
     parent = os.path.dirname(outfile)
     if parent:
@@ -57,7 +58,7 @@ def save_json(outfile, all_sentences, name="stimuli"):
             items.append({
                 "item_type": sentence.tag,
                 "id": sentence.id,
-                "sentence": sentence.word_sentence,
+                "sent": sentence.word_sentence,
                 "distractor": sentence.distractor_sentence,
                 "labels": sentence.label_sentence,
             })
@@ -103,37 +104,39 @@ def save_longform(outfile, all_sentences):
                     })
 
 
-def save_updated_longform(outfile, original_longform_path, all_sentences):
-    """Update a longform review file with newly generated distractors for rejected positions.
+def updated_longform_rows(original_longform_path, all_sentences):
+    """Merge newly generated distractors into the rows of a longform review file.
 
-    Reads the original longform file, replaces rejected rows with new distractors from
-    all_sentences, clears the 'rejected' flag, and writes everything to outfile.
-    Non-rejected rows are written unchanged. The 'options' column is added if not present.
+    A label is regenerated for an item if any of its rows is marked rejected, so
+    every row with that (item, label) gets its new distractor (with its own
+    sentence's punctuation), its options, and a cleared 'rejected' flag. Other
+    rows are unchanged. The 'options' and 'rejected' columns are added if missing.
 
     all_sentences should contain only the sentence sets that were regenerated.
+
+    Returns (fieldnames, rows).
     """
-    # Read original, preserving row order
     with open(original_longform_path, newline="") as f:
         reader = csv.DictReader(f)
         orig_fieldnames = reader.fieldnames or []
         orig_rows = list(reader)
 
-    # Build lookup of new distractors: (item_num_str, label_str) -> (distractor, options_str)
+    rejected_keys = {(row["item_num"], row["label"]) for row in orig_rows if row.get("rejected", "").strip()}
+
+    # (item_num, label, prefix) identifies one word position in one sentence.
     new_data = {}
     for ss in all_sentences.values():
         for sentence in ss.sentences:
             for i in range(1, len(sentence.labels)):
                 lab = sentence.labels[i]
                 real_word = sentence.words[i]
-                distractor = sentence.distractors[i]
+                prefix = " ".join(sentence.words[:i])
                 opts = ss.label_options.get(lab, [])
                 alt_strings = [copy_punct(real_word, o) for o in opts[1:]]
-                new_data[(str(sentence.id), str(lab))] = (distractor, ", ".join(alt_strings))
+                new_data[(str(sentence.id), str(lab), prefix)] = (sentence.distractors[i], ", ".join(alt_strings))
 
-    # Determine output fieldnames: preserve original columns, ensure 'options' and 'rejected' present
     out_fieldnames = list(orig_fieldnames)
     if "options" not in out_fieldnames:
-        # Insert before 'rejected' if it exists, otherwise append
         if "rejected" in out_fieldnames:
             out_fieldnames.insert(out_fieldnames.index("rejected"), "options")
         else:
@@ -141,20 +144,55 @@ def save_updated_longform(outfile, original_longform_path, all_sentences):
     if "rejected" not in out_fieldnames:
         out_fieldnames.append("rejected")
 
+    rows = []
+    for row in orig_rows:
+        row = dict(row)
+        if (row["item_num"], row["label"]) in rejected_keys:
+            key = (row["item_num"], row["label"], row["prefix"])
+            if key not in new_data:
+                raise ValueError(f"No regenerated distractor for item {key[0]}, label {key[1]}, prefix '{key[2]}'")
+            row["distractor"], row["options"] = new_data[key]
+            row["rejected"] = ""
+        rows.append(row)
+    return out_fieldnames, rows
+
+
+def write_longform_rows(outfile, fieldnames, rows):
+    """Write longform rows (as returned by updated_longform_rows) to a CSV."""
     parent = os.path.dirname(outfile)
     if parent:
         os.makedirs(parent, exist_ok=True)
     with open(outfile, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=out_fieldnames, extrasaction="ignore")
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
-        for row in orig_rows:
-            key = (row["item_num"], row["label"])
-            if key in new_data and row.get("rejected", "").strip():
-                new_dist, new_opts = new_data[key]
-                row["distractor"] = new_dist
-                row["options"] = new_opts
-                row["rejected"] = ""
-            writer.writerow(row)
+        writer.writerows(rows)
+
+
+def save_updated_longform(outfile, original_longform_path, all_sentences):
+    """Update a longform review file with newly generated distractors for rejected
+    labels (see updated_longform_rows) and write it to outfile."""
+    fieldnames, rows = updated_longform_rows(original_longform_path, all_sentences)
+    write_longform_rows(outfile, fieldnames, rows)
+
+
+def assign_distractors_from_longform(all_sentences, rows):
+    """Set every sentence's distractors from longform rows (e.g. a reviewed file),
+    so the sentence-level output reflects the review. Raises if a word position
+    has no row."""
+    by_position = {(row["item_num"], row["label"], row["prefix"]): row["distractor"] for row in rows}
+    for ss in all_sentences.values():
+        for sentence in ss.sentences:
+            distractors = ["x-x-x"]
+            for i in range(1, len(sentence.labels)):
+                key = (str(sentence.id), str(sentence.labels[i]), " ".join(sentence.words[:i]))
+                if key not in by_position:
+                    raise ValueError(
+                        f"The review file has no row for item {key[0]}, label {key[1]}, prefix '{key[2]}'. "
+                        "Was it made from this input file?"
+                    )
+                distractors.append(by_position[key])
+            sentence.distractors = distractors
+            sentence.distractor_sentence = " ".join(distractors)
 
 
 def save_distractor_summary(outfile, all_sentences):

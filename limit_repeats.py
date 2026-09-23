@@ -21,6 +21,5 @@ class Repeatcounter:
             self.distractors[word]+=1
         else:
             self.distractors[word]=1
-        if self.limit:
-            if self.distractors[word]>=self.max:
-                self.banned.append(word)
+        if self.limit and self.distractors[word] >= self.max and word not in self.banned:
+            self.banned.append(word)

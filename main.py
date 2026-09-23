@@ -1,5 +1,4 @@
 import logging
-import time
 import csv
 import os
 import importlib
@@ -7,7 +6,8 @@ from set_params import set_params
 from limit_repeats import Repeatcounter
 from get_surprisal import get_surprisal, load_surprisal_model
 from input import read_input
-from output import save_delim, save_json, save_distractor_summary, save_longform, save_updated_longform
+from output import (save_delim, save_json, save_distractor_summary, save_longform,
+                    updated_longform_rows, write_longform_rows, assign_distractors_from_longform)
 from utils import strip_punct
 
 SURPRISAL_LOG_HEADER = ["record_type", "sentence_set_id", "label", "prefix", "word", "surprisal_target", "actual_surprisal", "met_threshold"]
@@ -16,35 +16,48 @@ SURPRISAL_LOG_HEADER = ["record_type", "sentence_set_id", "label", "prefix", "wo
 def read_rejection_file(filepath):
     """Read a longform review CSV and return locked and rejected position info.
 
+    A label is rejected for an item if any of its rows is marked in the
+    "rejected" column (a label can appear in several sentences of an item,
+    which share one distractor). All other labels are locked to their current
+    distractor.
+
     Returns:
-        locked_by_item: dict mapping item_num (str) -> {label (int): distractor_word (str with punct)}
-            for positions not marked as rejected.
-        rejected_items: set of item_num strings that have at least one rejected position.
+        locked_by_item: dict mapping item_num (str) -> {label (str): distractor (str, with punctuation)}
+        rejected_items: set of item_num strings that have at least one rejected label.
     """
-    locked_by_item = {}
-    rejected_items = set()
     with open(filepath, newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            item_num = row["item_num"]
-            label = int(row["label"])
-            distractor = row["distractor"]
-            rejected = row.get("rejected", "").strip()
-            if rejected:
-                rejected_items.add(item_num)
-            else:
-                if item_num not in locked_by_item:
-                    locked_by_item[item_num] = {}
-                locked_by_item[item_num][label] = distractor
+        rows = list(csv.DictReader(f))
+
+    rejected_labels = {(row["item_num"], row["label"]) for row in rows if row.get("rejected", "").strip()}
+    rejected_items = {item_num for item_num, _ in rejected_labels}
+
+    locked_by_item = {}
+    for row in rows:
+        key = (row["item_num"], row["label"])
+        if key in rejected_labels:
+            continue
+        locked_by_item.setdefault(row["item_num"], {})[row["label"]] = row["distractor"]
     return locked_by_item, rejected_items
+
+
+def seed_repeats_from_locked(repeats, locked_by_item, rejected_items):
+    """Count the locked distractors of items that won't be regenerated.
+
+    Items being regenerated count their own locked distractors in
+    Sentence_Set.do_distractors, so they are skipped here to avoid counting
+    those words twice.
+    """
+    for item_num, locked in locked_by_item.items():
+        if item_num in rejected_items:
+            continue
+        for dist_word in locked.values():
+            repeats.increment(strip_punct(dist_word).lower())
 
 
 def run_stuff(infile, outfile, logfile=None, summaryfile=None, parameters="params.txt", outformat="delim", module_name="stimuli",
               model_override=None, backend_override=None,
               rejection_file=None, num_options=1, longform_outfile=None):
-    """Takes an input file, and an output file location
-    Does the whole distractor thing (according to specified parameters)
-    Writes in outformat
+    """Generate distractors for every sentence in infile and write them to outfile.
     
     Args:
         infile: Input CSV file with sentences
@@ -53,8 +66,15 @@ def run_stuff(infile, outfile, logfile=None, summaryfile=None, parameters="param
         parameters: A params file path, a dict of parameters, or None for all defaults
         outformat: Output format ('delim' or 'json')
         module_name: Name for JSON export (if outformat='json')
+        summaryfile: Optional CSV file counting how often each distractor was used
         model_override: If set, use this model name instead of the one in params
         backend_override: If set, use this backend instead of the one in params
+        rejection_file: Optional longform review CSV with a "rejected" column. Only
+            items with a rejected label are regenerated, and only their rejected
+            labels change. The sentence-level output then covers every sentence,
+            built from the updated review rows.
+        num_options: Number of candidates per position to list in the longform output
+        longform_outfile: Optional path for longform (one row per word position) output
     """
     if outformat not in ["delim", "json"]:
         raise ValueError("outfile format not understood: " + outformat)
@@ -75,9 +95,7 @@ def run_stuff(infile, outfile, logfile=None, summaryfile=None, parameters="param
     rejected_items = None
     if rejection_file:
         locked_by_item, rejected_items = read_rejection_file(rejection_file)
-        for locked in locked_by_item.values():
-            for dist_word in locked.values():
-                repeats.increment(strip_punct(dist_word).lower())
+        seed_repeats_from_locked(repeats, locked_by_item, rejected_items)
 
     log_writer = None
     log_handle = None
@@ -104,13 +122,15 @@ def run_stuff(infile, outfile, logfile=None, summaryfile=None, parameters="param
             log_handle.close()
 
     if rejection_file:
-        # In rejection mode, the primary output is the updated longform review file.
-        # Only pass the sentences that were actually processed (have distractors assigned).
+        # In rejection mode, the review file is the record of every distractor:
+        # merge the regenerated ones into it, then build the sentence-level output
+        # (all sentences) from it.
         processed_sents = {id: ss for id, ss in sents.items() if id in rejected_items}
+        fieldnames, rows = updated_longform_rows(rejection_file, processed_sents)
         if longform_outfile:
-            save_updated_longform(longform_outfile, rejection_file, processed_sents)
-        if outfile and outfile not in ("/dev/null", ""):
-            # Write just the regenerated sentences in sentence-level format (for inspection)
+            write_longform_rows(longform_outfile, fieldnames, rows)
+        assign_distractors_from_longform(sents, rows)
+        if outfile:
             if outformat == "json":
                 save_json(outfile, sents, module_name)
             else:
@@ -125,10 +145,3 @@ def run_stuff(infile, outfile, logfile=None, summaryfile=None, parameters="param
 
     if summaryfile:
         save_distractor_summary(summaryfile, sents)
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    t0 = time.perf_counter()
-
-    run_stuff("input/test_in.csv", "output/test_output.csv", logfile="output/verbose.csv", parameters="params.txt", outformat="delim", module_name="STIM")
-    logging.info("run_stuff completed in %.2fs", time.perf_counter() - t0)

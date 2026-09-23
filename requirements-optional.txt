@@ -1,0 +1,3 @@
+# Only needed for the litellm surprisal backend and check_distractors.py.
+litellm>=1.40
+pydantic>=2

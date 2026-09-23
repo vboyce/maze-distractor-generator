@@ -62,12 +62,15 @@ def read_input(filename):
                 labels = label_sentence.split()
                 if len(labels) != len(words):
                     if len(labels) == 0:
-                        labels = list(range(0, len(words)))
+                        labels = [str(i) for i in range(len(words))]
                     else:
-                        logging.error("Labels are wrong length for sentence %s", word_sentence)
-                        raise ValueError
+                        raise ValueError(
+                            f"Item {id}: {len(labels)} labels for {len(words)} words in sentence '{word_sentence}'"
+                        )
             else:
-                labels = list(range(0, len(words)))
+                # Default labels are word positions, as strings so they match
+                # labels read back from CSV files (e.g. a review file).
+                labels = [str(i) for i in range(len(words))]
             
             if id not in all_sentences.keys():
                 all_sentences[id] = Sentence_Set(id)

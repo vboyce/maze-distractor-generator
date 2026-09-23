@@ -1,58 +1,181 @@
 # maze-distractor-generator
 
-This is an update to Maze distractor generation code, meant to work with a wider variety of more recent models, and to work more easily with my current use cases.
+Automatically generates distractor words for the **Maze task** (A-maze). For each word of each sentence, it picks a real English word that is a bad continuation of the sentence so far. It judges this with a language model (surprisal), while matching the correct word roughly on length and frequency.
+
+This replaces the original A-maze code in [vboyce/Maze](https://github.com/vboyce/Maze) (`maze_automate`, now older). It works with current Hugging Face models (causal or masked) and API models, and adds a workflow for reviewing distractors and regenerating the bad ones.
+
+- **Documentation:** https://vboyce.github.io/maze-docs
+- **jsPsych plugin to run the task:** [jspsych-maze](https://github.com/vboyce/jspsych-maze)
+
+## Install
+
+Use Python 3.10 or later, in a project virtual environment:
+
+```sh
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt
+# optional: the litellm backend and check_distractors.py
+.venv/bin/pip install -r requirements-optional.txt
+```
+
+On a machine without an NVIDIA GPU, install the CPU build of torch first (see the comment in `requirements.txt`). `requirements-lock.txt` has the exact versions of a known-good Linux + CUDA environment.
+
+## Quick start
+
+```sh
+.venv/bin/python distract.py input/test_in.csv output/out.csv -p params.txt
+```
+
+This writes `output/out.csv`: the input sentences plus a `distractors` column. Run it from the repository root, because `params.txt` refers to the word lists by relative path. Models are downloaded from Hugging Face the first time they're used.
+
+For jsPsych, write a JavaScript module instead:
+
+```sh
+.venv/bin/python distract.py input/test_in.csv output/stimuli.js --format json --module-name stimuli
+```
+
+Run `python distract.py --help` to see all options.
 
 ## Input
 
-Input should be a csv with a header row and the following columns
+A CSV with a header row and these columns. Header names are matched case-insensitively, and the alternatives in brackets also work.
 
-1. "type" contains data to be passed through
-2. "item_num" contains an item id -- items with the same id get the same distractors (using labels)
-3. "sentence" the sentence
-4. (optional) "labels" if there are multiple sentences with the same item_num and they should have distractors matched on something other than word position, use labels to indicate the mappings
+| Column | Contents |
+|---|---|
+| `type` [`tag`, `condition`, `group`] | Passed through to the output unchanged (condition, etc.). |
+| `item_num` [`id`, `item`, `item_id`] | Item id. Sentences with the same id get matched distractors (see `labels`). |
+| `sentence` | The sentence. Words are split on spaces; punctuation stays attached to its word. |
+| `labels` (optional) | One label per word. Within an item, words with the same label get the same distractor. Without labels, words are matched by position. |
 
-Example:
+Example with labels:
+
+```
+type,item_num,sentence,labels
 sub_rel,3,The cat who the dog scared hid in a box.,pre_1 pre_2 who art noun verb main_verb post_1 post_2 post_3
 obj_rel,3,The dog who scared the cat sniffed around the couch.,pre_1 pre_2 who verb art noun main_verb post_1 post_2 post_3
+```
 
-here the articles of the relative phrases will get the same distractors, as will the verbs, and will the nouns in the relative phrases, even though they are in different positions within the sentences.
+Here the articles of the relative clauses get the same distractor, as do the verbs and the nouns, even though they are in different positions in the two sentences. The first word's label can't be reused later in the item, because the first word always gets the placeholder `x-x-x` (it has no context, so no distractor is meaningful).
 
 ## Output
 
-The options for output are a csv (for post-processing to work with anything) and a json file (for use with jspsych).
-For csv, it will basically give the input file back, plus a distractor column.
-For json, it will return a js module.
+- **`--format delim`** (default): a CSV with columns `type, item_num, sentence, distractors, labels`. `distractors` is a space-separated string with one distractor per word, starting with `x-x-x`.
+- **`--format json`**: a JavaScript module, `export const <module-name> = [...]`. Each item has `item_type`, `id`, `sent`, `distractor` and `labels`. The `sent` / `distractor` keys match what the jspsych-maze demos read.
+- **`--longform FILE`**: also write one row per word position (`type, item_num, label, prefix, real_word, distractor, options, rejected`), for review (see below).
+- **`--summary FILE`**: how many times each distractor was used.
+- **`--log FILE`**: every candidate that was tried, with its surprisal and whether it met the target. Useful for debugging or for choosing distractors by hand.
 
-## Verbose logging
+Distractors get the same leading/trailing punctuation and capitalization as the word they replace, so punctuation and case don't give the answer away.
 
-if you provide a logfile argument to run_stuff then it will log all the surprisals for the target word and potential distractors. Useful for debugging or for having options.
+## How distractors are chosen
 
-## Calculating surprisal
+For each label in an item:
 
-Surprisal is calculated using some model. Due to potential tokenization issues, we tokenize the prefix + " " + target word and then compare to just the prefix and then take the surprisal of the tokens beyond the prefix. This assumes that exactly how spaces are included in tokens is not relevant (which given that we mostly care about approximate surprisal seems fair).
+1. **Target.** Compute the surprisal of the real word(s) given the sentence so far. The target for a distractor is `max(min_abs, real-word surprisal + min_delta)` bits, in every sentence where the label appears.
+2. **Candidates.** Draw `num_to_test` random words from the word list whose length and frequency are close to the real word(s). If there aren't enough, widen the frequency band.
+3. **Choice.** Take the first candidate that meets the target in every sentence. If none does, take the candidate whose lowest surprisal is highest. Candidates are skipped if they are the real word, are already used in the item, or have been used `max_repeat` times across the whole run.
 
-Currently, we calculate the surprisal of the real words with all punctuation and capitalization included, but we calculate the surprisal of distractors plain (all lower case, no start or end punctuation). I think this is usually a conservative choice (certainly end punctuation will always increase surprisal, start punctuation or capitals could go either way in theory).
+Surprisal is calculated by tokenizing `prefix + " " + word`, comparing with the tokenization of `prefix` alone, and summing the surprisal of the extra tokens. This assumes it doesn't matter exactly how spaces are attached to tokens, which seems fair since only approximate surprisal matters. Real words are scored with their punctuation and capitalization; distractors are scored bare (lower case, no punctuation). That is usually conservative: end punctuation always raises surprisal.
 
-## Models that we might want to test
+## Parameters
 
-gpt2 (124M)
-distilgpt2 (82M)
-EleutherAI/gpt-neo-125m (125m)
-facebook/opt-125m (125m)
-llama3.2-1B (1B)
-EleutherAI/pythia-160m
-bigscience/bloom-560m
-HuggingFaceTB/SmolLM-360M
-Qwen/Qwen2-0.5B
+Parameters come from a file passed with `-p` (colon-separated `key: value` lines; values are Python literals, so strings need quotes; `#` starts a comment). Keys you leave out get the defaults below. An unknown key is an error, so a typo or an out-of-date key can't be silently ignored. See `params.txt` for an example.
 
-## Distractors
+| Key | Default | Meaning |
+|---|---|---|
+| `min_delta` | `10` | A distractor must be at least this many bits more surprising than the real word... |
+| `min_abs` | `25` | ...and at least this surprising in absolute terms. |
+| `num_to_test` | `100` | Number of candidates drawn per position. |
+| `model` | `"gpt2"` | Model name (Hugging Face id, or a liteLLM model string). |
+| `backend` | `"transformers"` | See "Backends". |
+| `max_repeat` | `0` | Maximum times any distractor is used in the whole run (`0` = no limit). `params.txt` uses `1`. |
+| `include_words` | `"curated_word_list.txt"` | Word list distractors are drawn from. |
+| `exclude_words` | `"exclude.txt"` | Words never used as distractors. |
+| `dictionary_loc`, `dictionary_class` | `"wordfreq_distractor"`, `"wordfreq_English_dict"` | Module and class that provide candidate words and frequencies. |
+| `threshold_loc`, `threshold_name` | `"wordfreq_distractor"`, `"get_thresholds"` | Module and function that turn the real words into length/frequency bounds. |
 
-curated_word_list has 19.4 K words of 1-14 characters in length (with at least 2\*\*7 tokens / billion words), filtered to be "real" words of all lower case, and excluding offensive words and (at least decreasing) words associated with violence and other sensitive topics. No guarantees.
+`--model` and `--backend` on the command line override the file.
 
-We recommend doing a level of distractor filtering that matches your use case. Some potential options/tools:
+## Backends
 
-- Use TODO implement to see and screen the list of distractor words (to your own sensibilities about what "counts" as a word or is in good taste); then find where any problem distractors were and replace/regenerate.
-- Use TODO implement LLM API calls to assess rejectability (note that LLM meta-linguistic judgments are not necessarily trustworthy)
-- Screen all or especially critical items by hand by running through them yourself
-- Pilot materials on a few participants and re-generate/fix distractors that multiple pilot participants get wrong.
-  For many use cases it might not matter that much if a few plausible distractors get through and so filtering may not be worth it. These are options for if you want more quality control, for instance for a high-stakes experiment or an experiment with ex. children.
+| `backend` | Models |
+|---|---|
+| `transformers` | Any Hugging Face causal or masked LM; the type is detected from the model config. |
+| `transformers_causal` | Force causal (GPT-2, Pythia, Llama, …). |
+| `transformers_masked` | Force masked (BERT, RoBERTa, …). A multi-token word is filled in left to right. |
+| `litellm` | API models via [liteLLM](https://docs.litellm.ai/). The provider must return log-probabilities for the prompt (`echo=True`), which many chat APIs don't. Needs `requirements-optional.txt`. |
+
+Models we have run (see `benchmark.py`): `gpt2`, `distilgpt2`, `EleutherAI/gpt-neo-125M`, `EleutherAI/pythia-160m`, `HuggingFaceTB/SmolLM-360M`, `Qwen/Qwen2-0.5B`, `distilbert-base-uncased`, `distilroberta-base`.
+
+## Reviewing and regenerating distractors
+
+Automatic distractors are sometimes plausible continuations, or unsuitable for your participants. To review them:
+
+1. Generate with a longform review file, optionally listing extra candidates per position:
+   ```sh
+   .venv/bin/python distract.py input.csv out.csv -p params.txt --longform review.csv --num-options 3
+   ```
+2. Open `review.csv` and put anything (e.g. `x`) in the `rejected` column of each bad distractor.
+3. Regenerate only the rejected positions:
+   ```sh
+   .venv/bin/python distract.py input.csv --rejection-file review.csv --longform review_2.csv -p params.txt
+   ```
+   Every position that wasn't rejected keeps its distractor. If a label appears in several sentences of an item, rejecting it in any one row regenerates it (in every row). Only items with a rejection are re-run.
+4. Repeat 2–3 until you're happy. To also get the final sentence-level output (all sentences), give an output file in rejection mode; it is built from the updated review file:
+   ```sh
+   .venv/bin/python distract.py input.csv final.js --format json --rejection-file review_2.csv --longform review_3.csv -p params.txt
+   ```
+   If nothing is marked rejected, nothing is regenerated, and this just converts the review file.
+
+Other options for quality control:
+- `check_distractors.py` asks an LLM whether each target and distractor is a grammatical continuation. Note that LLM metalinguistic judgments aren't necessarily trustworthy. `check-check-distractors.R` plots the results.
+  ```sh
+  .venv/bin/python check_distractors.py out.csv judgments.csv --model anthropic/claude-sonnet-4-20250514
+  ```
+  This makes one paid API call per word. It needs `requirements-optional.txt` and the provider's API key in the environment.
+- Screen critical items (or all items) yourself by running through them in the task.
+- Pilot on a few participants and regenerate distractors that several of them get wrong.
+
+For many uses a few plausible distractors don't matter much. Filtering is worth it for high-stakes experiments, or for experiments with children.
+
+## Word lists
+
+`curated_word_list.txt` has 19.4K words of 1–14 characters, each occurring at least 2<sup>7</sup> times per billion words. They are filtered to "real" all-lower-case words, excluding offensive words and (to a lesser extent) words about violence and other sensitive topics. There are no guarantees, so review distractors for your own use. `scripts/curate_wordlist.py` is the length-filtering step used to build it. `exclude.txt` lists words that are never used. Word frequencies come from [wordfreq](https://github.com/rspeer/wordfreq).
+
+Only English is set up. `wordfreq_distractor.wordfreq_French_dict` is a starting point for French, but it needs a French word list (`include_words`) and a French model.
+
+## Using it from Python
+
+```python
+from main import run_stuff
+run_stuff("input.csv", "out.csv", parameters="params.txt", outformat="delim",
+          longform_outfile="review.csv", logfile="log.csv")
+```
+
+`parameters` can also be a dict or `None` (all defaults).
+
+## Tests
+
+```sh
+.venv/bin/python -m pytest
+```
+
+The tests use a fake surprisal backend, so they don't download models. `tests/test_end_to_end.py` runs the whole pipeline, including a review/regenerate round trip.
+
+## Files
+
+| File | Purpose |
+|---|---|
+| `distract.py` | Command-line interface. |
+| `main.py` | `run_stuff`: the whole pipeline; reading review files. |
+| `input.py`, `output.py` | Reading input; writing CSV / JS / longform / summary output. |
+| `sentence_set.py` | Sentences, items and labels; distractor choice. |
+| `wordfreq_distractor.py`, `distractor.py` | Candidate words and length/frequency thresholds. |
+| `get_surprisal.py`, `backends/` | Surprisal from language models. |
+| `limit_repeats.py`, `set_params.py`, `utils.py` | Repeat limits, parameters, punctuation handling. |
+| `check_distractors.py`, `check-check-distractors.R` | LLM grammaticality check, and plots of it. |
+| `benchmark.py` | Compare models' run time on the same input. |
+
+## Citing
+
+V. Boyce, R. Futrell, R. P. Levy (2020). Maze Made Easy: Better and easier measurement of incremental processing difficulty. *Journal of Memory and Language*. Please also cite the language model you use.

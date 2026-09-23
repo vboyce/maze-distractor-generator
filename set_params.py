@@ -15,6 +15,9 @@ DEFAULTS = {
     "max_repeat": 0,
 }
 
+# Keys with no default that the dictionary class reads if present.
+OPTIONAL_KEYS = {"include_words", "exclude_words"}
+
 
 def _read_params_file(file):
     """Parse a colon-delimited params file into a dict."""
@@ -54,5 +57,11 @@ def set_params(source=None):
             logging.info("Using default %s = %s", key, default)
             params[key] = default
 
+    unknown = set(user_params) - OPTIONAL_KEYS
+    if unknown:
+        raise ValueError(
+            f"Unknown parameter(s) {sorted(unknown)}. Known parameters: "
+            f"{sorted(set(DEFAULTS) | OPTIONAL_KEYS)}"
+        )
     params.update(user_params)
     return params
