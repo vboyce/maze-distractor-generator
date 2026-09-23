@@ -1,4 +1,9 @@
-"""Check whether a word is a grammatical continuation of a prefix using an LLM."""
+"""Check whether a word is a grammatical continuation of a prefix using an LLM.
+
+Experimental / in progress: in a test run, the LLM judged about 8% of real
+target words ungrammatical, so these judgments are not yet reliable enough to
+reject distractors automatically.
+"""
 import csv
 import json
 import logging

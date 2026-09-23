@@ -128,7 +128,7 @@ Automatic distractors are sometimes plausible continuations, or unsuitable for y
    If nothing is marked rejected, nothing is regenerated, and this just converts the review file.
 
 Other options for quality control:
-- `check_distractors.py` asks an LLM whether each target and distractor is a grammatical continuation. Note that LLM metalinguistic judgments aren't necessarily trustworthy. `check-check-distractors.R` plots the results.
+- **Experimental, in progress:** `check_distractors.py` asks an LLM whether each target and distractor is a grammatical continuation. It isn't reliable yet. In one test run (9 Natural Stories items, Claude Sonnet), 8% of the *real* words were judged ungrammatical, so don't use it to reject distractors automatically. `check-check-distractors.R` is exploratory code for looking at its output.
   ```sh
   .venv/bin/python check_distractors.py out.csv judgments.csv --model anthropic/claude-sonnet-4-20250514
   ```
@@ -173,7 +173,7 @@ The tests use a fake surprisal backend, so they don't download models. `tests/te
 | `wordfreq_distractor.py`, `distractor.py` | Candidate words and length/frequency thresholds. |
 | `get_surprisal.py`, `backends/` | Surprisal from language models. |
 | `limit_repeats.py`, `set_params.py`, `utils.py` | Repeat limits, parameters, punctuation handling. |
-| `check_distractors.py`, `check-check-distractors.R` | LLM grammaticality check, and plots of it. |
+| `check_distractors.py`, `check-check-distractors.R` | Experimental LLM grammaticality check (not reliable yet), and exploratory plots of it. |
 | `benchmark.py` | Compare models' run time on the same input. |
 
 ## Citing
