@@ -190,4 +190,7 @@ The tests use a fake surprisal backend, so they don't download models. `tests/te
 
 ## Citing
 
-V. Boyce, R. Futrell, R. P. Levy (2020). Maze Made Easy: Better and easier measurement of incremental processing difficulty. *Journal of Memory and Language*. Please also cite the language model you use.
+There isn't yet a separate publication for this newer distractor generation. If you use it, please cite one of the A-maze papers, plus the specific language model you used to generate distractors:
+
+- V. Boyce, R. Futrell, R. P. Levy (2020). Maze Made Easy: Better and easier measurement of incremental processing difficulty. *Journal of Memory and Language*.
+- V. Boyce, R. P. Levy (2023). A-maze of Natural Stories: Comprehension and surprisal in the Maze task. *Glossa Psycholinguistics*.
