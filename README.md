@@ -141,7 +141,7 @@ For many uses a few plausible distractors don't matter much. Filtering is worth 
 
 ## Word lists
 
-`curated_word_list.txt` has 19.4K words of 1–14 characters, each occurring at least 2<sup>7</sup> times per billion words. They are filtered to "real" all-lower-case words, excluding offensive words and (to a lesser extent) words about violence and other sensitive topics. There are no guarantees, so review distractors for your own use. `scripts/curate_wordlist.py` is the length-filtering step used to build it. `exclude.txt` lists words that are never used. Word frequencies come from [wordfreq](https://github.com/rspeer/wordfreq).
+`curated_word_list.txt` has 19.4K words of 1–14 characters, each occurring at least 2<sup>7</sup> times per billion words. They are filtered to "real" all-lower-case words, excluding offensive and sensitive (sexual, violent, religious) words. There are no guarantees, so review distractors for your own use. `scripts/curate_wordlist.py` is the length-filtering step used to build it. `exclude.txt` lists words that are never used. Word frequencies come from [wordfreq](https://github.com/rspeer/wordfreq).
 
 ### Other languages
 
