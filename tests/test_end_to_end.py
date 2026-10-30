@@ -244,3 +244,27 @@ def test_position_with_no_candidates_gets_NO_DISTRACTOR_and_a_warning(tmp_path, 
         run_stuff(str(infile), str(tmp_path / "out.csv"), parameters=PARAMS)
     assert read_csv(tmp_path / "out.csv")[0]["distractors"] == "x-x-x NO-DISTRACTOR."
     assert "NO-DISTRACTOR" in caplog.text
+
+
+RUN_IN_SUBPROCESS = """
+import sys
+from unittest.mock import patch
+sys.path.insert(0, sys.argv[1])
+from main import run_stuff
+from tests.test_end_to_end import FakeBackend, PARAMS
+with patch("main.load_surprisal_model", return_value=FakeBackend()):
+    run_stuff(sys.argv[2], sys.argv[3], parameters={**PARAMS, "candidate_order": "random", "seed": 1})
+"""
+
+
+def test_runs_in_different_processes_give_the_same_distractors(infile, tmp_path):
+    """Python randomizes string hashing per process, so nothing may depend
+    on the iteration order of a set of strings."""
+    import subprocess
+    outputs = []
+    for hash_seed in ["1", "2"]:
+        out = tmp_path / f"out_{hash_seed}.csv"
+        subprocess.run([sys.executable, "-c", RUN_IN_SUBPROCESS, REPO, infile, str(out)], check=True,
+                       cwd=REPO, env={**os.environ, "PYTHONHASHSEED": hash_seed})
+        outputs.append(read_csv(out))
+    assert outputs[0] == outputs[1]

@@ -310,3 +310,26 @@ class TestItemWords:
             ss.do_distractors(None, mock_dict(["the", "a", "dog"]), threshold_func,
                               {**PARAMS, "avoid_item_words": False}, Repeatcounter(0))
         assert ss.labels[1].distractor == "the"
+
+
+# --- Label order (reproducibility) ---
+
+def test_labels_are_processed_in_order_of_first_appearance():
+    """Labels used to come from a set, so with string labels their order (and
+    so which label drew candidates first, and which distractors were banned
+    first) changed from one Python process to the next."""
+    words = ["Start"] + [f"w{i}" for i in range(1, 12)]
+    ss = Sentence_Set("1")
+    sent = Sentence(words, [str(i) for i in range(12)], "1", "x")
+    sent.surprisal = {str(i): 1.0 for i in range(1, 12)}
+    ss.add(sent)
+    ss.make_labels()
+    seen = []
+
+    def recording_threshold_func(label_words, params=None):
+        seen.append(label_words[0])
+        return (2, 10, 1, 20)
+
+    with patch("sentence_set.get_surprisal", return_value=30.0):
+        ss.do_distractors(None, mock_dict(["dog"]), recording_threshold_func, PARAMS, Repeatcounter(0))
+    assert seen == words[1:]

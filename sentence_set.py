@@ -199,7 +199,7 @@ class Sentence_Set:
     def __init__(self, id):
         self.id = id
         self.sentences = []
-        self.label_ids = set()
+        self.label_ids = {}  # used as an ordered set: labels in order of first appearance
         self.first_labels = set()
         self.labels = {}  # dictionary of label:label object
         self.label_options = {}  # label -> list of candidate words (populated by do_distractors)
@@ -210,8 +210,8 @@ class Sentence_Set:
             self.sentences.append(sentence)
             first_label = sentence.labels[0]
             self.first_labels = self.first_labels.union(set([first_label]))
-            self.label_ids = self.label_ids.union(sentence.labels[1:])
-            if self.first_labels & self.label_ids != set():
+            self.label_ids.update(dict.fromkeys(sentence.labels[1:]))
+            if self.first_labels & set(self.label_ids) != set():
                 raise ValueError("Labels of first words cannot match labels of later words in the same set in item " + str(self.id))
         else:
             raise ValueError("ID doesn't match for item " + str(sentence.id) + " and item " + str(self.id))
@@ -223,7 +223,7 @@ class Sentence_Set:
 
     def make_labels(self):
         """Regroups the stuff in the sentence items into by-label groups"""
-        for lab in self.label_ids: #init label objects
+        for lab in self.label_ids: #init label objects, in order of first appearance
             self.labels[lab] = Label(self.id, lab)
         for sentence in self.sentences: #dump stuff into the label objects
             for i in range(1, len(sentence.labels)):
