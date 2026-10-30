@@ -4,6 +4,21 @@ from utils import copy_punct, strip_punct
 from limit_repeats import Repeatcounter
 from get_surprisal import get_surprisal
 
+FALLBACK_RANKINGS = ("gap", "min_surprisal")
+
+
+def fallback_rank(surprisals, targets, fallback_ranking):
+    """Ranking value of a candidate that misses some target; lower is better.
+
+    "gap": its worst shortfall, max over contexts of (target - surprisal).
+    "min_surprisal": its lowest surprisal in any context, negated (so the
+    highest lowest surprisal ranks first).
+    """
+    if fallback_ranking == "gap":
+        return max(target - surp for surp, target in zip(surprisals, targets))
+    if fallback_ranking == "min_surprisal":
+        return -min(surprisals)
+    raise ValueError(f"Unknown fallback_ranking {fallback_ranking!r}; use one of {FALLBACK_RANKINGS}")
 
 
 def no_duplicates(my_list):
@@ -69,7 +84,8 @@ class Label:
         A candidate is "good" if its surprisal meets the target
         (max(min_abs, real word's surprisal + min_delta)) after every prefix
         with this label. Good candidates come first, in the order found; then
-        the rest, by their lowest surprisal, highest first. The search stops
+        the rest, ranked by params["fallback_ranking"] (see fallback_rank),
+        ties in the order found. The search stops
         once n good candidates are found. Candidates on `banned` and the real
         words themselves are skipped.
 
@@ -82,7 +98,7 @@ class Label:
         avoid = [strip_punct(word).lower() for word in self.words]
 
         good = []
-        fallback = []  # (min_surp, word)
+        fallback = []  # (rank, word); lower rank is better
 
         for dist in distractor_opts:
             if len(good) >= n:
@@ -90,32 +106,33 @@ class Label:
             if dist in banned or dist in avoid:
                 continue
             dist_good = True
-            min_surp = float("inf")
+            dist_surps = []
             for i in range(len(self.words)):
                 dist_surp = get_surprisal(backend=backend, prefix=self.prefixes[i], word=dist)
+                dist_surps.append(dist_surp)
                 if log_writer:
                     log_writer.writerow([
                         "distractor_candidate", sentence_set_id, self.lab,
                         self.prefixes[i], dist, self.surprisal_targets[i],
                         dist_surp, dist_surp >= self.surprisal_targets[i]
                     ])
-                min_surp = min(min_surp, dist_surp)
                 if dist_surp < self.surprisal_targets[i]:
                     dist_good = False
             if dist_good:
                 good.append(dist)
             else:
-                fallback.append((min_surp, dist))
+                rank = fallback_rank(dist_surps, self.surprisal_targets, params["fallback_ranking"])
+                fallback.append((rank, dist))
 
-        fallback.sort(reverse=True, key=lambda x: x[0])
+        fallback.sort(key=lambda x: x[0])  # stable, so ties stay in the order found
         result = (good + [w for _, w in fallback])[:n]
         self.distractor = result[0] if result else "x-x-x"
         return result
 
     def choose_distractor(self, backend, dict, threshold_func, params, banned, sentence_set_id, log_writer=None):
         """Choose one distractor: the first candidate that meets the surprisal
-        target in every sentence with this label, or else the candidate whose
-        lowest surprisal is highest. Candidates on `banned` (used too often, or
+        target in every sentence with this label, or else the best fallback
+        (see choose_top_n_distractors). Candidates on `banned` (used too often, or
         already used in this sentence set) and the real words are skipped.
         Returns "x-x-x" if there are no candidates."""
         self.choose_top_n_distractors(1, backend, dict, threshold_func, params, banned, sentence_set_id, log_writer)

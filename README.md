@@ -73,7 +73,7 @@ For each label in an item:
 
 1. **Target.** Compute the surprisal of the real word(s) given the sentence so far. The target for a distractor is `max(min_abs, real-word surprisal + min_delta)` bits, in every sentence where the label appears.
 2. **Candidates.** Draw `num_to_test` random words from the word list whose length and frequency are close to the real word(s). If there aren't enough, widen the frequency band.
-3. **Choice.** Take the first candidate that meets the target in every sentence. If none does, take the candidate whose lowest surprisal is highest. Candidates are skipped if they are the real word, are already used in the item, or have been used `max_repeat` times across the whole run.
+3. **Choice.** Take the first candidate that meets the target in every sentence. If none does, take the fallback that comes closest, as set by `fallback_ranking`: by default (`"gap"`) the one whose worst shortfall (target minus surprisal, in the sentence where it falls furthest short) is smallest; with `"min_surprisal"`, the one whose lowest surprisal in any sentence is highest. Ties go to the candidate drawn first. Candidates are skipped if they are the real word, are already used in the item, or have been used `max_repeat` times across the whole run.
 
 Surprisal is calculated by tokenizing `prefix + " " + word`, comparing with the tokenization of `prefix` alone, and summing the surprisal of the extra tokens. This assumes it doesn't matter exactly how spaces are attached to tokens, which seems fair since only approximate surprisal matters. Real words are scored with their punctuation and capitalization; distractors are scored bare (lower case, no punctuation). That is usually conservative: end punctuation always raises surprisal.
 
@@ -88,6 +88,7 @@ Parameters come from a file passed with `-p` (colon-separated `key: value` lines
 | `num_to_test` | `100` | Number of candidates drawn per position. |
 | `model` | required | Model name (Hugging Face id, or a liteLLM model string). |
 | `backend` | `"transformers"` | See "Backends". |
+| `fallback_ranking` | `"gap"` | How to choose among candidates that miss a target: `"gap"` or `"min_surprisal"` (see "How it works"). |
 | `max_repeat` | `0` | Maximum times any distractor is used in the whole run (`0` = no limit). `params.txt` uses `1`. |
 | `language` | `"en"` | [wordfreq](https://github.com/rspeer/wordfreq) language code (e.g. `"fr"`, `"de"`, `"zh"`), used for word frequencies. See "Other languages". |
 | `include_words` | `"curated_word_list.txt"` for English; required otherwise | Word list distractors are drawn from. |

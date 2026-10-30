@@ -62,3 +62,12 @@ def test_unknown_key_raises():
     silently ignoring them would run with the wrong model."""
     with pytest.raises(ValueError, match="model_loc"):
         set_params({"model": "gpt2", "model_loc": "french_data/model.pt"})
+
+
+def test_fallback_ranking_defaults_to_gap():
+    assert set_params({"model": "gpt2"})["fallback_ranking"] == "gap"
+
+
+def test_unknown_fallback_ranking_raises_before_the_run():
+    with pytest.raises(ValueError, match="fallback_ranking"):
+        set_params({"model": "gpt2", "fallback_ranking": "biggest"})

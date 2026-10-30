@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from sentence_set import Label, Sentence, Sentence_Set
 from limit_repeats import Repeatcounter
 
-PARAMS = {"min_abs": 25, "min_delta": 10, "num_to_test": 100}
+PARAMS = {"min_abs": 25, "min_delta": 10, "num_to_test": 100, "fallback_ranking": "gap"}
 
 
 def make_label(word="cat", prefix="The", surprisal=8.0):
@@ -222,11 +222,15 @@ def fallback_surprisal(backend, prefix, word):
     return FALLBACK_SURPRISALS[(prefix, word)]
 
 
-class TestFallbackRanking:
+MIN_SURPRISAL_PARAMS = {**PARAMS, "fallback_ranking": "min_surprisal"}
+
+
+class TestMinSurprisalRanking:
     def test_item_gets_the_fallback_with_the_highest_lowest_surprisal(self):
         ss = make_two_sentence_set()
         with patch("sentence_set.get_surprisal", side_effect=fallback_surprisal):
-            ss.do_distractors(None, mock_dict(["alpha", "bravo"]), threshold_func, PARAMS, Repeatcounter(0))
+            ss.do_distractors(None, mock_dict(["alpha", "bravo"]), threshold_func, MIN_SURPRISAL_PARAMS,
+                              Repeatcounter(0))
         assert [s.distractor_sentence for s in ss.sentences] == ["x-x-x bravo.", "x-x-x bravo."]
 
     def test_fallbacks_are_ranked_on_their_lowest_surprisal_in_every_sentence(self):
@@ -234,5 +238,48 @@ class TestFallbackRanking:
         ss = make_two_sentence_set()
         with patch("sentence_set.get_surprisal", side_effect=fallback_surprisal):
             result = ss.labels[1].choose_top_n_distractors(
-                2, None, mock_dict(["alpha", "bravo"]), threshold_func, PARAMS, [], "1")
+                2, None, mock_dict(["alpha", "bravo"]), threshold_func, MIN_SURPRISAL_PARAMS, [], "1")
         assert result == ["bravo", "alpha"]
+
+
+# Neither candidate meets both targets (25 after "The", 40 after "A").
+# "alpha": 24 and 45; lowest surprisal 24; worst shortfall 25 - 24 = 1.
+# "bravo": 30 and 37; lowest surprisal 30; worst shortfall 40 - 37 = 3.
+GAP_SURPRISALS = {("The", "alpha"): 24.0, ("A", "alpha"): 45.0,
+                  ("The", "bravo"): 30.0, ("A", "bravo"): 37.0}
+
+
+def gap_surprisal(backend, prefix, word):
+    return GAP_SURPRISALS[(prefix, word)]
+
+
+def item_distractor(fallback_ranking):
+    ss = make_two_sentence_set()
+    params = {**PARAMS, "fallback_ranking": fallback_ranking}
+    with patch("sentence_set.get_surprisal", side_effect=gap_surprisal):
+        ss.do_distractors(None, mock_dict(["alpha", "bravo"]), threshold_func, params, Repeatcounter(0))
+    return ss.sentences[0].distractors[1]
+
+
+class TestFallbackRankingParameter:
+    def test_gap_ranking_picks_the_smallest_worst_shortfall(self):
+        assert item_distractor("gap") == "alpha."
+
+    def test_min_surprisal_ranking_picks_the_highest_lowest_surprisal(self):
+        assert item_distractor("min_surprisal") == "bravo."
+
+    def test_gap_ties_go_to_the_earliest_candidate(self):
+        lab = make_label()  # one context, target 25
+        with patch("sentence_set.get_surprisal", return_value=20.0):
+            result = lab.choose_top_n_distractors(
+                3, None, mock_dict(["dog", "run", "fast"]), threshold_func,
+                {**PARAMS, "fallback_ranking": "gap"}, [], "1")
+        assert result == ["dog", "run", "fast"]
+
+    def test_unknown_ranking_raises(self):
+        lab = make_label()
+        with patch("sentence_set.get_surprisal", return_value=20.0):
+            with pytest.raises(ValueError, match="fallback_ranking"):
+                lab.choose_top_n_distractors(
+                    1, None, mock_dict(["dog"]), threshold_func,
+                    {**PARAMS, "fallback_ranking": "closest"}, [], "1")

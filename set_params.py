@@ -13,6 +13,12 @@ DEFAULTS = {
     "backend": "transformers",
     "max_repeat": 0,
     "language": "en",
+    "fallback_ranking": "gap",
+}
+
+# Keys whose value must be one of a fixed set.
+ALLOWED_VALUES = {
+    "fallback_ranking": ("gap", "min_surprisal"),
 }
 
 # Keys with no default that must be given. There is no default model, so that
@@ -80,4 +86,7 @@ def set_params(source=None, overrides=None):
             f"{sorted(set(DEFAULTS) | REQUIRED_KEYS | OPTIONAL_KEYS)}"
         )
     params.update(user_params)
+    for key, allowed in ALLOWED_VALUES.items():
+        if params[key] not in allowed:
+            raise ValueError(f"{key} must be one of {allowed}, not {params[key]!r}")
     return params
