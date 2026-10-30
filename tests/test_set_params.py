@@ -84,3 +84,20 @@ def test_revision_defaults_to_none():
 def test_prepend_start_token_must_be_true_or_false():
     with pytest.raises(ValueError, match="prepend_start_token"):
         set_params({"model": "gpt2", "prepend_start_token": "yes"})
+
+
+def test_candidates_are_tried_closest_first_by_default():
+    assert set_params({"model": "gpt2"})["candidate_order"] == "closest"
+
+
+def test_seed_defaults_to_0():
+    assert set_params({"model": "gpt2"})["seed"] == 0
+
+
+def test_item_words_are_avoided_by_default():
+    assert set_params({"model": "gpt2"})["avoid_item_words"] is True
+
+
+def test_unknown_candidate_order_raises():
+    with pytest.raises(ValueError, match="candidate_order"):
+        set_params({"model": "gpt2", "candidate_order": "alphabetical"})

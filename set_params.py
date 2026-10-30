@@ -16,12 +16,17 @@ DEFAULTS = {
     "fallback_ranking": "gap",
     "prepend_start_token": True,
     "revision": None,
+    "candidate_order": "closest",
+    "seed": 0,
+    "avoid_item_words": True,
 }
 
 # Keys whose value must be one of a fixed set.
 ALLOWED_VALUES = {
     "fallback_ranking": ("gap", "min_surprisal"),
     "prepend_start_token": (True, False),
+    "candidate_order": ("closest", "random"),
+    "avoid_item_words": (True, False),
 }
 
 # Keys with no default that must be given. There is no default model, so that

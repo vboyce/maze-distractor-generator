@@ -35,3 +35,8 @@ class TestCopyPunct:
 
     def test_all_punctuation_word_is_kept_as_a_prefix(self):
         assert copy_punct("--", "dog") == "--dog"
+
+
+def test_copy_punct_can_keep_the_distractor_s_case():
+    assert copy_punct("cat.", "NO-DISTRACTOR", keep_case=True) == "NO-DISTRACTOR."
+    assert copy_punct("Cat,", "NO-DISTRACTOR", keep_case=True) == "NO-DISTRACTOR,"

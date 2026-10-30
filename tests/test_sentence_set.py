@@ -5,10 +5,11 @@ from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from sentence_set import Label, Sentence, Sentence_Set
+from sentence_set import Label, Sentence, Sentence_Set, item_words
 from limit_repeats import Repeatcounter
 
-PARAMS = {"min_abs": 25, "min_delta": 10, "num_to_test": 100, "fallback_ranking": "gap"}
+PARAMS = {"min_abs": 25, "min_delta": 10, "num_to_test": 100, "fallback_ranking": "gap",
+          "avoid_item_words": True}
 
 
 def make_label(word="cat", prefix="The", surprisal=8.0):
@@ -84,14 +85,15 @@ class TestChooseTopN:
             )
         assert lab.distractor == result[0]
 
-    def test_returns_empty_and_sets_fallback_when_no_candidates(self):
+    def test_returns_empty_and_sets_NO_DISTRACTOR_when_no_candidates(self, caplog):
         lab = make_label()
         with patch("sentence_set.get_surprisal", return_value=30.0):
             result = lab.choose_top_n_distractors(
                 3, None, mock_dict([]), threshold_func, PARAMS, [], "1"
             )
         assert result == []
-        assert lab.distractor == "x-x-x"
+        assert lab.distractor == "NO-DISTRACTOR"
+        assert "NO-DISTRACTOR" in caplog.text
 
     def test_no_duplicates_in_result(self):
         lab = make_label()
@@ -128,10 +130,10 @@ class TestDoDistractorsLocked:
         ss = make_sentence_set()
         repeats = Repeatcounter(0)
         locked = {1: "dog"}
-        # Pool only has "dog" — if it's correctly banned, label 2 will fall back to x-x-x
+        # Pool only has "dog" — if it's correctly banned, label 2 gets NO-DISTRACTOR
         with patch("sentence_set.get_surprisal", return_value=30.0):
             ss.do_distractors(None, mock_dict(["dog"]), threshold_func, PARAMS, repeats, locked=locked)
-        # "dog" used for label 1; label 2 can't reuse it, so it should get x-x-x
+        # "dog" used for label 1; label 2 can't reuse it, so it gets NO-DISTRACTOR
         words = ss.sentences[0].distractor_sentence.split()
         assert words.count("dog") == 1  # appears only once
 
@@ -189,11 +191,12 @@ class TestChooseDistractor:
             result = lab.choose_distractor(None, mock_dict(["cat", "dog", "run"]), threshold_func, PARAMS, ["dog"], "1")
         assert result == "run"
 
-    def test_returns_placeholder_when_no_candidates(self):
+    def test_returns_NO_DISTRACTOR_when_no_candidates(self):
+        """Not x-x-x, which marks the first word, so that the failure shows."""
         lab = make_label()
         with patch("sentence_set.get_surprisal", return_value=30.0):
             result = lab.choose_distractor(None, mock_dict([]), threshold_func, PARAMS, [], "1")
-        assert result == "x-x-x"
+        assert result == "NO-DISTRACTOR"
 
 
 # --- Fallback ranking across several sentences with one label ---
@@ -283,3 +286,27 @@ class TestFallbackRankingParameter:
                 lab.choose_top_n_distractors(
                     1, None, mock_dict(["dog"]), threshold_func,
                     {**PARAMS, "fallback_ranking": "closest"}, [], "1")
+
+
+# --- Words of the item (avoid_item_words) ---
+
+class TestItemWords:
+    def test_words_are_lowercased_without_punctuation(self):
+        assert item_words(["The", "Cat,", "sat."]) == {"the", "cat", "sat"}
+
+    def test_possessives_and_hyphenated_words_are_split(self):
+        assert item_words(["cat's", "well-known"]) == {"cat", "s", "well", "known"}
+
+    def test_a_word_from_another_sentence_of_the_item_is_not_chosen(self):
+        ss = make_two_sentence_set()  # "The cat." and "A cat."
+        with patch("sentence_set.get_surprisal", return_value=40.0):
+            ss.do_distractors(None, mock_dict(["the", "a", "dog"]), threshold_func,
+                              {**PARAMS, "avoid_item_words": True}, Repeatcounter(0))
+        assert ss.labels[1].distractor == "dog"
+
+    def test_off_only_the_label_s_own_words_are_avoided(self):
+        ss = make_two_sentence_set()
+        with patch("sentence_set.get_surprisal", return_value=40.0):
+            ss.do_distractors(None, mock_dict(["the", "a", "dog"]), threshold_func,
+                              {**PARAMS, "avoid_item_words": False}, Repeatcounter(0))
+        assert ss.labels[1].distractor == "the"

@@ -16,18 +16,21 @@ def strip_punct(word):
     return word[first:last + 1]
 
 
-def copy_punct(word, distractor):
+def copy_punct(word, distractor, keep_case=False):
     """Takes the start and end punctuation of word as well as the capitalization pattern
-    and return distractor with that punctuation and capitalization.
+    and return distractor with that punctuation and capitalization (or with its
+    own case, if keep_case).
     A word with no letters or digits (e.g. "--") is kept whole as a prefix."""
     bounds = _alnum_bounds(word)
     if bounds is None:
-        return word + distractor.lower()
+        return word + (distractor if keep_case else distractor.lower())
     first, last = bounds
     prefix = word[:first]
     suffix = word[last + 1:]
     core = word[first:last + 1]
-    if len(core) > 1 and core.isupper():
+    if keep_case:
+        pass
+    elif len(core) > 1 and core.isupper():
         distractor = distractor.upper()  # all capitalized
     elif len(core) > 1 and core[0].isupper():
         distractor = distractor[0:1].upper() + distractor[1:]  # first letter capitalized

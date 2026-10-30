@@ -42,7 +42,10 @@ def run_item(backend, fallback_ranking, num_options):
         ss.add(Sentence(words, [0, 1, 2], "1", tag))
     ss.do_surprisals(backend)
     ss.make_labels()
-    params = {"min_abs": 3.4, "min_delta": 0, "num_to_test": len(POOL), "fallback_ranking": fallback_ranking}
+    # The pool is the tiny vocabulary, which is also the item's words, so
+    # avoid_item_words is off.
+    params = {"min_abs": 3.4, "min_delta": 0, "num_to_test": len(POOL), "fallback_ranking": fallback_ranking,
+              "avoid_item_words": False}
     ss.do_distractors(backend, mock_dict(POOL), threshold_func, params, Repeatcounter(0), num_options=num_options)
     return ss.label_options, [s.distractor_sentence for s in ss.sentences]
 

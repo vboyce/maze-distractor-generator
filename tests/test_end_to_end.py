@@ -199,3 +199,48 @@ def test_run_passes_start_token_and_revision_to_the_backend(infile, tmp_path):
         run_stuff(infile, str(tmp_path / "out.csv"), parameters=params)
     assert load.call_args.kwargs["prepend_start_token"] is False
     assert load.call_args.kwargs["revision"] == "abc123"
+
+
+def distractor_rows(infile, tmp_path, name, **params):
+    out = tmp_path / name
+    with patch("main.load_surprisal_model", return_value=FakeBackend()):
+        run_stuff(infile, str(out), parameters={**PARAMS, **params})
+    return [row["distractors"] for row in read_csv(out)]
+
+
+@pytest.mark.parametrize("candidate_order", ["closest", "random"])
+def test_same_seed_gives_the_same_distractors(infile, tmp_path, candidate_order):
+    first = distractor_rows(infile, tmp_path, "a.csv", candidate_order=candidate_order, seed=3)
+    second = distractor_rows(infile, tmp_path, "b.csv", candidate_order=candidate_order, seed=3)
+    assert first == second
+
+
+@pytest.mark.parametrize("candidate_order", ["closest", "random"])
+def test_different_seeds_give_different_distractors(infile, tmp_path, candidate_order):
+    first = distractor_rows(infile, tmp_path, "a.csv", candidate_order=candidate_order, seed=3)
+    second = distractor_rows(infile, tmp_path, "b.csv", candidate_order=candidate_order, seed=4)
+    assert first != second
+
+
+def test_no_word_of_the_item_is_a_distractor(tmp_path):
+    # Every candidate scores 40 bits, so without avoid_item_words the first
+    # candidate in the pool would be chosen; here that is a word of the item.
+    infile = tmp_path / "in.csv"
+    infile.write_text("type,item_num,sentence\nx,1,The tiger's well-known stripes.\nx,2,Birds sing.\n")
+    pool = ["stripes", "tiger", "known", "dog", "cat", "hen", "owl", "elk"]
+    params = {**PARAMS, "max_repeat": 0}
+    with patch("main.load_surprisal_model", return_value=FakeBackend()), \
+            patch("wordfreq_distractor.wordfreq_dict.get_potential_distractors", return_value=pool):
+        run_stuff(str(infile), str(tmp_path / "out.csv"), parameters=params)
+    distractors = read_csv(tmp_path / "out.csv")[0]["distractors"].split()[1:]
+    assert not {"stripes", "tiger", "known", "well"} & {d.strip(".").lower() for d in distractors}
+
+
+def test_position_with_no_candidates_gets_NO_DISTRACTOR_and_a_warning(tmp_path, caplog):
+    infile = tmp_path / "in.csv"
+    infile.write_text("type,item_num,sentence\nx,1,Birds sing.\n")
+    with patch("main.load_surprisal_model", return_value=FakeBackend()), \
+            patch("wordfreq_distractor.wordfreq_dict.get_potential_distractors", return_value=[]):
+        run_stuff(str(infile), str(tmp_path / "out.csv"), parameters=PARAMS)
+    assert read_csv(tmp_path / "out.csv")[0]["distractors"] == "x-x-x NO-DISTRACTOR."
+    assert "NO-DISTRACTOR" in caplog.text

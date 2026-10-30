@@ -1,10 +1,20 @@
 import logging
 import csv
+import re
 from utils import copy_punct, strip_punct
 from limit_repeats import Repeatcounter
 from get_surprisal import get_surprisal
 
 FALLBACK_RANKINGS = ("gap", "min_surprisal")
+
+# Shown in place of a distractor when a position had no candidate to try.
+NO_DISTRACTOR = "NO-DISTRACTOR"
+
+
+def item_words(words):
+    """The lowercase letter runs of words, so "Cat's" gives "cat" and "s",
+    and "well-known" gives "well" and "known"."""
+    return {part for word in words for part in re.findall(r"[^\W\d_]+", word.lower())}
 
 # Backends with a score_candidates method score this many candidates at
 # once, then twice as many, and so on, until enough good ones are found.
@@ -117,12 +127,15 @@ class Label:
         once n good candidates are found. Candidates on `banned` and the real
         words themselves are skipped.
 
-        Sets self.distractor to the first result ("x-x-x" if there are none).
+        Sets self.distractor to the first result, or NO_DISTRACTOR (with a
+        warning) if there was no candidate to try.
         """
         for surprisal in self.surprisals:
             self.surprisal_targets.append(max(params["min_abs"], surprisal + params["min_delta"]))
         min_length, max_length, min_freq, max_freq = threshold_func(self.words, params)
-        distractor_opts = dict.get_potential_distractors(min_length, max_length, min_freq, max_freq, params)
+        distractor_opts = dict.get_potential_distractors(min_length, max_length, min_freq, max_freq, params,
+                                                         target_words=self.words,
+                                                         order_key=f"{self.id}\0{self.lab}")
         avoid = [strip_punct(word).lower() for word in self.words]
 
         candidates = [dist for dist in distractor_opts if dist not in banned and dist not in avoid]
@@ -162,7 +175,12 @@ class Label:
 
         fallback.sort(key=lambda x: x[0])  # stable, so ties stay in the order found
         result = (good + [w for _, w in fallback])[:n]
-        self.distractor = result[0] if result else "x-x-x"
+        if result:
+            self.distractor = result[0]
+        else:
+            logging.warning("Item %s, label %s: no candidate distractors to try; using %s",
+                            self.id, self.lab, NO_DISTRACTOR)
+            self.distractor = NO_DISTRACTOR
         return result
 
     def choose_distractor(self, backend, dict, threshold_func, params, banned, sentence_set_id, log_writer=None):
@@ -170,7 +188,7 @@ class Label:
         target in every sentence with this label, or else the best fallback
         (see choose_top_n_distractors). Candidates on `banned` (used too often, or
         already used in this sentence set) and the real words are skipped.
-        Returns "x-x-x" if there are no candidates."""
+        Returns NO_DISTRACTOR if there are no candidates."""
         self.choose_top_n_distractors(1, backend, dict, threshold_func, params, banned, sentence_set_id, log_writer)
         return self.distractor
 
@@ -217,8 +235,13 @@ class Sentence_Set:
 
         locked: optional dict mapping label -> distractor word (with punctuation) for positions to keep as-is.
         num_options: number of candidate options to generate per unlocked position (default 1 = original behavior).
+
+        With params["avoid_item_words"], no word of any sentence in the set
+        (see item_words) is used as a distractor.
         """
         banned = repeats.banned[:] #don't allow duplicate distractors within the set
+        if params["avoid_item_words"]:
+            banned.extend(item_words(word for sentence in self.sentences for word in sentence.words))
         self.label_options = {}
         for label in self.labels.values():
             if locked and label.lab in locked:
@@ -235,13 +258,15 @@ class Sentence_Set:
                 self.label_options[label.lab] = opts
             else:
                 dist = label.choose_distractor(backend, d, threshold_func, params, banned, self.id, log_writer)
-                banned.append(dist)
-                repeats.increment(dist)
+                if dist != NO_DISTRACTOR:
+                    banned.append(dist)
+                    repeats.increment(dist)
                 self.label_options[label.lab] = [dist]
         for sentence in self.sentences: #give the sentences the distractors
             for i in range(1, len(sentence.labels)):
                 lab = sentence.labels[i]
                 # we match distractors to their real words on punctuation
-                distractor = copy_punct(sentence.words[i], self.labels[lab].distractor)
+                dist = self.labels[lab].distractor
+                distractor = copy_punct(sentence.words[i], dist, keep_case=(dist == NO_DISTRACTOR))
                 sentence.distractors.append(distractor)
             sentence.distractor_sentence = " ".join(sentence.distractors) #and in sentence_format
