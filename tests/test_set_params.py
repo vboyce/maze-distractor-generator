@@ -71,3 +71,16 @@ def test_fallback_ranking_defaults_to_gap():
 def test_unknown_fallback_ranking_raises_before_the_run():
     with pytest.raises(ValueError, match="fallback_ranking"):
         set_params({"model": "gpt2", "fallback_ranking": "biggest"})
+
+
+def test_start_token_is_prepended_by_default():
+    assert set_params({"model": "gpt2"})["prepend_start_token"] is True
+
+
+def test_revision_defaults_to_none():
+    assert set_params({"model": "gpt2"})["revision"] is None
+
+
+def test_prepend_start_token_must_be_true_or_false():
+    with pytest.raises(ValueError, match="prepend_start_token"):
+        set_params({"model": "gpt2", "prepend_start_token": "yes"})

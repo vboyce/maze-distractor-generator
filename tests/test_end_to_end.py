@@ -191,3 +191,11 @@ def test_model_override_supplies_the_required_model(infile, tmp_path):
     with patch("main.load_surprisal_model", return_value=FakeBackend()) as load:
         run_stuff(infile, str(tmp_path / "out.csv"), parameters=params, model_override="distilgpt2")
     assert load.call_args.args[0] == "distilgpt2"
+
+
+def test_run_passes_start_token_and_revision_to_the_backend(infile, tmp_path):
+    params = {**PARAMS, "prepend_start_token": False, "revision": "abc123"}
+    with patch("main.load_surprisal_model", return_value=FakeBackend()) as load:
+        run_stuff(infile, str(tmp_path / "out.csv"), parameters=params)
+    assert load.call_args.kwargs["prepend_start_token"] is False
+    assert load.call_args.kwargs["revision"] == "abc123"

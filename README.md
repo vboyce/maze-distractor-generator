@@ -75,7 +75,7 @@ For each label in an item:
 2. **Candidates.** Draw `num_to_test` random words from the word list whose length and frequency are close to the real word(s). If there aren't enough, widen the frequency band.
 3. **Choice.** Take the first candidate that meets the target in every sentence. If none does, take the fallback that comes closest, as set by `fallback_ranking`: by default (`"gap"`) the one whose worst shortfall (target minus surprisal, in the sentence where it falls furthest short) is smallest; with `"min_surprisal"`, the one whose lowest surprisal in any sentence is highest. Ties go to the candidate drawn first. Candidates are skipped if they are the real word, are already used in the item, or have been used `max_repeat` times across the whole run.
 
-Surprisal is calculated by tokenizing `prefix + " " + word`, comparing with the tokenization of `prefix` alone, and summing the surprisal of the extra tokens. This assumes it doesn't matter exactly how spaces are attached to tokens, which seems fair since only approximate surprisal matters. Real words are scored with their punctuation and capitalization; distractors are scored bare (lower case, no punctuation). That is usually conservative: end punctuation always raises surprisal.
+Surprisal is calculated by tokenizing `prefix + " " + word`, comparing with the tokenization of `prefix` alone, and summing the surprisal of the extra tokens. With `prepend_start_token` (the default), a causal model reads a start token before the prefix, as it saw at the start of each document in training: the token the tokenizer adds itself if it adds one, otherwise its BOS token, otherwise its EOS token (with a warning). This lowers the surprisal of words early in a sentence, so it changes the targets as well as the candidates' scores. Models are loaded as float32, and a sentence longer than the model can read is an error. This assumes it doesn't matter exactly how spaces are attached to tokens, which seems fair since only approximate surprisal matters. Real words are scored with their punctuation and capitalization; distractors are scored bare (lower case, no punctuation). That is usually conservative: end punctuation always raises surprisal.
 
 ## Parameters
 
@@ -88,6 +88,8 @@ Parameters come from a file passed with `-p` (colon-separated `key: value` lines
 | `num_to_test` | `100` | Number of candidates drawn per position. |
 | `model` | required | Model name (Hugging Face id, or a liteLLM model string). |
 | `backend` | `"transformers"` | See "Backends". |
+| `prepend_start_token` | `True` | Put the model's start token before the context (see "How it works"). Must be `False` for `litellm`; can't be `False` for masked LMs, which always start with `[CLS]`. |
+| `revision` | `None` | Hugging Face model revision (branch, tag or commit) to load, for reproducible runs. Not supported by `litellm`. |
 | `fallback_ranking` | `"gap"` | How to choose among candidates that miss a target: `"gap"` or `"min_surprisal"` (see "How it works"). |
 | `max_repeat` | `0` | Maximum times any distractor is used in the whole run (`0` = no limit). `params.txt` uses `1`. |
 | `language` | `"en"` | [wordfreq](https://github.com/rspeer/wordfreq) language code (e.g. `"fr"`, `"de"`, `"zh"`), used for word frequencies. See "Other languages". |
@@ -105,7 +107,7 @@ Parameters come from a file passed with `-p` (colon-separated `key: value` lines
 | `transformers` | Any Hugging Face causal or masked LM; the type is detected from the model config. |
 | `transformers_causal` | Force causal (GPT-2, Pythia, Llama, …). |
 | `transformers_masked` | Force masked (BERT, RoBERTa, …). A multi-token word is filled in left to right. |
-| `litellm` | API models via [liteLLM](https://docs.litellm.ai/). The provider must return log-probabilities for the prompt (`echo=True`), which many chat APIs don't. Needs `requirements-optional.txt`. |
+| `litellm` | API models via [liteLLM](https://docs.litellm.ai/). The provider must return log-probabilities for the prompt (`echo=True`), which many chat APIs don't. Set `prepend_start_token: False`. Needs `requirements-optional.txt`. |
 
 Models we have run (see `benchmark.py`): `gpt2`, `distilgpt2`, `EleutherAI/gpt-neo-125M`, `EleutherAI/pythia-160m`, `HuggingFaceTB/SmolLM-360M`, `Qwen/Qwen2-0.5B`, `distilbert-base-uncased`, `distilroberta-base`.
 
@@ -173,7 +175,7 @@ run_stuff("input.csv", "out.csv", parameters="params.txt", outformat="delim",
 .venv/bin/python -m pytest
 ```
 
-The tests use a fake surprisal backend, so they don't download models. `tests/test_end_to_end.py` runs the whole pipeline, including a review/regenerate round trip.
+The tests use a fake surprisal backend, or a tiny random model built on the fly (`tests/tiny_lm.py`), so they don't download models. `tests/test_end_to_end.py` runs the whole pipeline, including a review/regenerate round trip.
 
 ## Files
 

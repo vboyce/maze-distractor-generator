@@ -14,11 +14,14 @@ DEFAULTS = {
     "max_repeat": 0,
     "language": "en",
     "fallback_ranking": "gap",
+    "prepend_start_token": True,
+    "revision": None,
 }
 
 # Keys whose value must be one of a fixed set.
 ALLOWED_VALUES = {
     "fallback_ranking": ("gap", "min_surprisal"),
+    "prepend_start_token": (True, False),
 }
 
 # Keys with no default that must be given. There is no default model, so that

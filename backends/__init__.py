@@ -11,10 +11,10 @@ __all__ = [
 ]
 
 
-def _detect_transformers_type(model_name: str) -> str:
+def _detect_transformers_type(model_name: str, revision: str = None) -> str:
     """Use the model config to determine whether a model is causal or masked."""
     from transformers import AutoConfig
-    config = AutoConfig.from_pretrained(model_name)
+    config = AutoConfig.from_pretrained(model_name, revision=revision)
     architectures = getattr(config, "architectures", []) or []
     for arch in architectures:
         if "CausalLM" in arch or "LMHeadModel" in arch:
@@ -42,13 +42,14 @@ def load_surprisal_model(
             'transformers_causal' - force causal LM (GPT-2, Llama, etc.)
             'transformers_masked' - force masked LM (BERT, RoBERTa, etc.)
             'litellm'             - Any provider via liteLLM (OpenAI, Azure, vLLM, etc.)
-        **kwargs: Backend-specific options (e.g. device for transformers)
+        **kwargs: Backend options: prepend_start_token and revision (all
+            backends; see each backend's docs), device (transformers)
 
     Returns:
         SurprisalBackend instance with get_surprisal(prefix, word, base=2.0)
     """
     if backend == "transformers":
-        model_type = _detect_transformers_type(model_name)
+        model_type = _detect_transformers_type(model_name, kwargs.get("revision"))
         logging.info("Auto-detected %s as %s LM", model_name, model_type)
         if model_type == "masked":
             return MaskedLMBackend(model_name, **kwargs)

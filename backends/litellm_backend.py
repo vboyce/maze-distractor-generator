@@ -19,9 +19,19 @@ class LiteLLMBackend:
         model_name: liteLLM model string (e.g. 'text-davinci-003',
             'openai/gpt-3.5-turbo-instruct', 'ollama/llama2')
         api_base: Optional API base URL for self-hosted providers
+        prepend_start_token: Must be False: the API is sent text, so no start
+            token can be put before it. (True is the default for every
+            backend, so that the error says to change it.)
+        revision: Must be None: model versions are set by the provider.
     """
 
-    def __init__(self, model_name: str, api_base: Optional[str] = None, **kwargs):
+    def __init__(self, model_name: str, api_base: Optional[str] = None,
+                 prepend_start_token: bool = True, revision: Optional[str] = None):
+        if prepend_start_token:
+            raise ValueError("The litellm backend cannot put a start token before the text it sends; "
+                             "set prepend_start_token: False")
+        if revision is not None:
+            raise ValueError("The litellm backend cannot pin a model revision; leave revision unset")
         try:
             import litellm  # noqa: F401
         except ImportError:

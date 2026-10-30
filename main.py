@@ -84,7 +84,9 @@ def run_stuff(infile, outfile, logfile=None, summaryfile=None, parameters="param
     dict_class = getattr(importlib.import_module(params["dictionary_loc"]),
                          params["dictionary_class"])
     d = dict_class(params)
-    backend = load_surprisal_model(params["model"], backend=params["backend"])
+    backend = load_surprisal_model(params["model"], backend=params["backend"],
+                                   prepend_start_token=params["prepend_start_token"],
+                                   revision=params["revision"])
     threshold_func = getattr(importlib.import_module(params["threshold_loc"]),
                              params["threshold_name"])
     repeats = Repeatcounter(params["max_repeat"])
