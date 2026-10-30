@@ -99,9 +99,9 @@ class Label:
                         self.prefixes[i], dist, self.surprisal_targets[i],
                         dist_surp, dist_surp >= self.surprisal_targets[i]
                     ])
+                min_surp = min(min_surp, dist_surp)
                 if dist_surp < self.surprisal_targets[i]:
                     dist_good = False
-                    min_surp = min(min_surp, dist_surp)
             if dist_good:
                 good.append(dist)
             else:

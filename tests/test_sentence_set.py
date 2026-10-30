@@ -194,3 +194,45 @@ class TestChooseDistractor:
         with patch("sentence_set.get_surprisal", return_value=30.0):
             result = lab.choose_distractor(None, mock_dict([]), threshold_func, PARAMS, [], "1")
         assert result == "x-x-x"
+
+
+# --- Fallback ranking across several sentences with one label ---
+
+def make_two_sentence_set():
+    """One item, two sentences sharing label 1, whose targets are 25 and 40."""
+    ss = Sentence_Set("1")
+    first = Sentence(["The", "cat."], [0, 1], "1", "a")
+    first.surprisal = {1: 10.0}  # target max(25, 10 + 10) = 25
+    second = Sentence(["A", "cat."], [0, 1], "1", "b")
+    second.surprisal = {1: 30.0}  # target max(25, 30 + 10) = 40
+    ss.add(first)
+    ss.add(second)
+    ss.make_labels()
+    return ss
+
+
+# Neither candidate meets both targets.
+# "alpha": 26 after "The" (passes), 39 after "A" (fails); lowest overall 26.
+# "bravo": 30 after "The" (passes), 35 after "A" (fails); lowest overall 30.
+FALLBACK_SURPRISALS = {("The", "alpha"): 26.0, ("A", "alpha"): 39.0,
+                       ("The", "bravo"): 30.0, ("A", "bravo"): 35.0}
+
+
+def fallback_surprisal(backend, prefix, word):
+    return FALLBACK_SURPRISALS[(prefix, word)]
+
+
+class TestFallbackRanking:
+    def test_item_gets_the_fallback_with_the_highest_lowest_surprisal(self):
+        ss = make_two_sentence_set()
+        with patch("sentence_set.get_surprisal", side_effect=fallback_surprisal):
+            ss.do_distractors(None, mock_dict(["alpha", "bravo"]), threshold_func, PARAMS, Repeatcounter(0))
+        assert [s.distractor_sentence for s in ss.sentences] == ["x-x-x bravo.", "x-x-x bravo."]
+
+    def test_fallbacks_are_ranked_on_their_lowest_surprisal_in_every_sentence(self):
+        """Contexts a fallback passes count too, not only the ones it fails."""
+        ss = make_two_sentence_set()
+        with patch("sentence_set.get_surprisal", side_effect=fallback_surprisal):
+            result = ss.labels[1].choose_top_n_distractors(
+                2, None, mock_dict(["alpha", "bravo"]), threshold_func, PARAMS, [], "1")
+        assert result == ["bravo", "alpha"]
