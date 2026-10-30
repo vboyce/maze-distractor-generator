@@ -4,6 +4,7 @@ import math
 import random
 import logging
 import hashlib
+import os
 
 import utils
 from distractor import distractor_dict, distractor
@@ -18,6 +19,12 @@ def check_language(language):
 
 
 CANDIDATE_ORDERS = ("closest", "random")
+
+# English word lists from Amani Maina-Kilaas's maze-distractor-generator,
+# GPL-3; see word_lists/README.md for how they were built.
+WORD_LISTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "word_lists")
+NAMES_AND_ABBREVIATIONS = [os.path.join(WORD_LISTS, "first_names.txt"),
+                           os.path.join(WORD_LISTS, "abbreviations.txt")]
 
 
 def hash_order(order_key, word):
@@ -41,7 +48,9 @@ class wordfreq_dict(distractor_dict):
     in wordfreq's vocabulary for the language, not in the exclude list
     (params["exclude_words"]), and made only of lowercase letters (so proper
     nouns, abbreviations and words with digits or punctuation are dropped; for
-    English, only a-z).
+    English, only a-z). With params["avoid_names_and_abbreviations"], the words
+    readers know only as a first name or an abbreviation (word_lists/) are left
+    out too.
 
     English defaults to curated_word_list.txt; other languages must name their
     own include list.
@@ -64,6 +73,9 @@ class wordfreq_dict(distractor_dict):
 
         freqs = wordfreq.get_frequency_dict(self.language)
         exclusions = set(read_word_list(exclude)) if exclude is not None else set()
+        if params.get("avoid_names_and_abbreviations", False):
+            for path in NAMES_AND_ABBREVIATIONS:
+                exclusions.update(read_word_list(path))
         words = (set(read_word_list(include)) & set(freqs)) - exclusions
         self.words = []
         for word in sorted(words):

@@ -98,6 +98,7 @@ Parameters come from a file passed with `-p` (colon-separated `key: value` lines
 | `language` | `"en"` | [wordfreq](https://github.com/rspeer/wordfreq) language code (e.g. `"fr"`, `"de"`, `"zh"`), used for word frequencies. See "Other languages". |
 | `include_words` | `"curated_word_list.txt"` for English; required otherwise | Word list distractors are drawn from. |
 | `exclude_words` | `"exclude.txt"` | Words never used as distractors. |
+| `avoid_names_and_abbreviations` | `True` for English, `False` otherwise | Never use a word readers know only as a first name or an abbreviation (`word_lists/first_names.txt`, `word_lists/abbreviations.txt`; see `word_lists/README.md`). English only: `True` with another language is an error. |
 | `dictionary_loc`, `dictionary_class` | `"wordfreq_distractor"`, `"wordfreq_dict"` | Module and class that provide candidate words and frequencies. (`wordfreq_English_dict` still works, for English only.) |
 | `threshold_loc`, `threshold_name` | `"wordfreq_distractor"`, `"get_thresholds"` | Module and function that turn the real words into length/frequency bounds. |
 
@@ -147,7 +148,7 @@ For many uses a few plausible distractors don't matter much. Filtering is worth 
 
 ## Word lists
 
-`curated_word_list.txt` has 19.4K words of 1–14 characters, each occurring at least 2<sup>7</sup> times per billion words. They are filtered to "real" all-lower-case words, excluding offensive and sensitive (sexual, violent, religious) words. There are no guarantees, so review distractors for your own use. `scripts/curate_wordlist.py` is the length-filtering step used to build it. `exclude.txt` lists words that are never used. Word frequencies come from [wordfreq](https://github.com/rspeer/wordfreq).
+`curated_word_list.txt` has 19.4K words of 1–14 characters, each occurring at least 2<sup>7</sup> times per billion words. They are filtered to "real" all-lower-case words, excluding offensive and sensitive (sexual, violent, religious) words. There are no guarantees, so review distractors for your own use. `scripts/curate_wordlist.py` is the length-filtering step used to build it. `exclude.txt` lists words that are never used. With `avoid_names_and_abbreviations` (the default for English), neither are the first names and abbreviations in `word_lists/`, from Amani Maina-Kilaas's version of the generator (see `word_lists/README.md` for how they were built). Word frequencies come from [wordfreq](https://github.com/rspeer/wordfreq).
 
 ### Other languages
 

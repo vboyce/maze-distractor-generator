@@ -8,7 +8,8 @@ from set_params import set_params, DEFAULTS
 
 
 def test_keys_left_out_get_the_defaults():
-    assert set_params({"model": "gpt2"}) == {**DEFAULTS, "model": "gpt2"}
+    assert set_params({"model": "gpt2"}) == {**DEFAULTS, "model": "gpt2",
+                                             "avoid_names_and_abbreviations": True}
 
 
 def test_dict_values_override_defaults():
@@ -103,3 +104,25 @@ def test_item_words_are_avoided_by_default():
 def test_unknown_candidate_order_raises():
     with pytest.raises(ValueError, match="candidate_order"):
         set_params({"model": "gpt2", "candidate_order": "alphabetical"})
+
+
+# --- English-only heuristics: on by default for English, off otherwise ---
+
+def test_names_and_abbreviations_are_avoided_by_default_in_english():
+    assert set_params({"model": "gpt2"})["avoid_names_and_abbreviations"] is True
+
+
+def test_names_and_abbreviations_are_not_avoided_by_default_in_other_languages():
+    assert set_params({"model": "gpt2", "language": "fr"})["avoid_names_and_abbreviations"] is False
+
+
+def test_avoiding_names_and_abbreviations_outside_english_raises():
+    """The lists are English; asking for them in another language would be
+    silently ignored otherwise."""
+    with pytest.raises(ValueError, match="avoid_names_and_abbreviations"):
+        set_params({"model": "gpt2", "language": "fr", "avoid_names_and_abbreviations": True})
+
+
+def test_avoid_names_and_abbreviations_must_be_true_or_false():
+    with pytest.raises(ValueError, match="avoid_names_and_abbreviations"):
+        set_params({"model": "gpt2", "avoid_names_and_abbreviations": "yes"})

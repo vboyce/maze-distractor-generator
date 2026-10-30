@@ -284,3 +284,17 @@ def test_used_up_candidates_do_not_count_toward_num_to_test(tmp_path):
     with patch("main.load_surprisal_model", return_value=FakeBackend()):
         run_stuff(str(infile), str(tmp_path / "out.csv"), parameters=params)
     assert [r["distractors"] for r in read_csv(tmp_path / "out.csv")] == ["x-x-x ring.", "x-x-x sings."]
+
+
+def test_first_names_are_not_used_as_distractors_by_default(tmp_path):
+    """Readers know "adam" and "alan" only as names, so they would read as
+    plausible continuations. Only the names are in sing's frequency window;
+    "sings", just below it, comes in when the search widens."""
+    infile = tmp_path / "in.csv"
+    infile.write_text("type,item_num,sentence\nx,1,Birds sing.\n")
+    words = tmp_path / "words.txt"
+    words.write_text("adam\nalan\nsings\n")
+    params = {**PARAMS, "include_words": str(words)}
+    with patch("main.load_surprisal_model", return_value=FakeBackend()):
+        run_stuff(str(infile), str(tmp_path / "out.csv"), parameters=params)
+    assert read_csv(tmp_path / "out.csv")[0]["distractors"] == "x-x-x sings."

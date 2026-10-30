@@ -29,6 +29,10 @@ ALLOWED_VALUES = {
     "avoid_item_words": (True, False),
 }
 
+# Heuristics that use English word lists. Each defaults to on when language is
+# "en" and off otherwise; turning one on for another language is an error.
+ENGLISH_ONLY_KEYS = ("avoid_names_and_abbreviations",)
+
 # Keys with no default that must be given. There is no default model, so that
 # a run can't silently use a model nobody chose.
 REQUIRED_KEYS = {"model"}
@@ -87,11 +91,23 @@ def set_params(source=None, overrides=None):
             logging.info("Using default %s = %s", key, default)
             params[key] = default
 
+    for key in ENGLISH_ONLY_KEYS:
+        english = params["language"] == "en"
+        if key in user_params:
+            params[key] = user_params.pop(key)
+        else:
+            logging.info("Using default %s = %s", key, english)
+            params[key] = english
+        if params[key] not in (True, False):
+            raise ValueError(f"{key} must be True or False, not {params[key]!r}")
+        if params[key] and not english:
+            raise ValueError(f"{key} uses English word lists, so it can't be True for language {params['language']!r}")
+
     unknown = set(user_params) - REQUIRED_KEYS - OPTIONAL_KEYS
     if unknown:
         raise ValueError(
             f"Unknown parameter(s) {sorted(unknown)}. Known parameters: "
-            f"{sorted(set(DEFAULTS) | REQUIRED_KEYS | OPTIONAL_KEYS)}"
+            f"{sorted(set(DEFAULTS) | set(ENGLISH_ONLY_KEYS) | REQUIRED_KEYS | OPTIONAL_KEYS)}"
         )
     params.update(user_params)
     for key, allowed in ALLOWED_VALUES.items():
