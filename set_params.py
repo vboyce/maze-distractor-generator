@@ -16,7 +16,7 @@ DEFAULTS = {
     "fallback_ranking": "gap",
     "prepend_start_token": True,
     "revision": None,
-    "candidate_order": "closest",
+    "candidate_order": "random",
     "seed": 0,
     "avoid_item_words": True,
 }

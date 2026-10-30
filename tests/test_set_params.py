@@ -86,8 +86,10 @@ def test_prepend_start_token_must_be_true_or_false():
         set_params({"model": "gpt2", "prepend_start_token": "yes"})
 
 
-def test_candidates_are_tried_closest_first_by_default():
-    assert set_params({"model": "gpt2"})["candidate_order"] == "closest"
+def test_candidates_are_tried_in_random_order_by_default():
+    """Closest-first left more positions short of the threshold on expt-1's
+    stimuli (114 of 572 met it, against 140 in random order)."""
+    assert set_params({"model": "gpt2"})["candidate_order"] == "random"
 
 
 def test_seed_defaults_to_0():
