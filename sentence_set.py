@@ -133,10 +133,11 @@ class Label:
         for surprisal in self.surprisals:
             self.surprisal_targets.append(max(params["min_abs"], surprisal + params["min_delta"]))
         min_length, max_length, min_freq, max_freq = threshold_func(self.words, params)
+        avoid = [strip_punct(word).lower() for word in self.words]
         distractor_opts = dict.get_potential_distractors(min_length, max_length, min_freq, max_freq, params,
                                                          target_words=self.words,
-                                                         order_key=f"{self.id}\0{self.lab}")
-        avoid = [strip_punct(word).lower() for word in self.words]
+                                                         order_key=f"{self.id}\0{self.lab}",
+                                                         avoid=list(banned) + avoid)
 
         candidates = [dist for dist in distractor_opts if dist not in banned and dist not in avoid]
         # A score that meets its target may be a lower bound, which is all the

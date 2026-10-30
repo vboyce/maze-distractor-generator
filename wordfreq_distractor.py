@@ -95,11 +95,12 @@ class wordfreq_dict(distractor_dict):
         return matches
 
     def get_potential_distractors(self, min_length, max_length, min_freq, max_freq, params,
-                                  target_words=None, order_key=None):
+                                  target_words=None, order_key=None, avoid=()):
         """Up to params["num_to_test"] candidates: the words within the length
         and frequency bounds, and if there are too few of those, words in
         widening frequency bands beyond them (lower and higher), one band at a
-        time until there are enough.
+        time until there are enough. Words in avoid are left out before
+        counting, so they never take the place of a word that could be used.
 
         Their order is params["candidate_order"]:
             "random": the words within the bounds, shuffled, then each band,
@@ -114,7 +115,10 @@ class wordfreq_dict(distractor_dict):
         if candidate_order == "closest" and (target_words is None or order_key is None):
             raise ValueError('candidate_order "closest" needs the target words and an order key')
 
+        avoid = set(avoid)
+
         def arrange(words):
+            words = [word for word in words if word not in avoid]
             if candidate_order == "random":
                 self.rng.shuffle(words)
             return words

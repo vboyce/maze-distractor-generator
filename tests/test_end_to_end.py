@@ -268,3 +268,19 @@ def test_runs_in_different_processes_give_the_same_distractors(infile, tmp_path)
                        cwd=REPO, env={**os.environ, "PYTHONHASHSEED": hash_seed})
         outputs.append(read_csv(out))
     assert outputs[0] == outputs[1]
+
+
+def test_used_up_candidates_do_not_count_toward_num_to_test(tmp_path):
+    """Banned words (used max_repeat times, or words of the item) are dropped
+    before candidates are capped at num_to_test, so the search widens instead
+    of giving up. With closest-first order the same few words head the list
+    at every short, common target word, so late items ran out."""
+    infile = tmp_path / "in.csv"
+    infile.write_text("type,item_num,sentence\nx,1,Birds sing.\nx,2,Birds sing.\n")
+    # "ring" is in sing's frequency window; "sings" is just below it.
+    words = tmp_path / "words.txt"
+    words.write_text("ring\nsings\n")
+    params = {**PARAMS, "include_words": str(words), "num_to_test": 1, "max_repeat": 1}
+    with patch("main.load_surprisal_model", return_value=FakeBackend()):
+        run_stuff(str(infile), str(tmp_path / "out.csv"), parameters=params)
+    assert [r["distractors"] for r in read_csv(tmp_path / "out.csv")] == ["x-x-x ring.", "x-x-x sings."]

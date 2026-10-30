@@ -65,6 +65,14 @@ class TestClosestOrder:
         closest = d.get_potential_distractors(*WINDOW, params, target_words=TARGET, order_key="1\0label")
         assert closest == order(d)[:4]
 
+    def test_avoided_words_do_not_count_toward_num_to_test(self, tmp_path):
+        d = make_dict(tmp_path)
+        avoid = order(d)[:2]
+        params = {"num_to_test": 4, "seed": 0, "candidate_order": "closest"}
+        closest = d.get_potential_distractors(*WINDOW, params, target_words=TARGET, order_key="1\0label",
+                                              avoid=avoid)
+        assert closest == order(d)[2:6]
+
 
 class TestRandomOrder:
     def test_is_the_window_shuffled_by_a_generator_seeded_with_seed(self, tmp_path):
