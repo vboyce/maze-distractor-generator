@@ -6,6 +6,34 @@ from get_surprisal import get_surprisal
 
 FALLBACK_RANKINGS = ("gap", "min_surprisal")
 
+# Backends with a score_candidates method score this many candidates at
+# once, then twice as many, and so on, until enough good ones are found.
+FIRST_CHUNK = 16
+
+
+def score_candidates(backend, prefix, candidates, exact_below):
+    """(surprisal, exact) for each candidate after prefix.
+
+    Backends with a fast path (the causal transformers backend) define
+    score_candidates, which may return a lower bound (exact=False) for a
+    score at or above exact_below. Every other backend is scored one
+    candidate at a time with get_surprisal, exactly.
+    """
+    if hasattr(backend, "score_candidates"):
+        return backend.score_candidates(prefix, candidates, exact_below)
+    return [(get_surprisal(backend=backend, prefix=prefix, word=word), True) for word in candidates]
+
+
+def candidate_chunks(candidates, batched):
+    """Consecutive chunks of candidates: FIRST_CHUNK, then doubling, if
+    batched; otherwise one at a time."""
+    start, size = 0, FIRST_CHUNK if batched else 1
+    while start < len(candidates):
+        yield candidates[start:start + size]
+        start += size
+        if batched:
+            size *= 2
+
 
 def fallback_rank(surprisals, targets, fallback_ranking):
     """Ranking value of a candidate that misses some target; lower is better.
@@ -57,7 +85,7 @@ class Sentence:
             prefix = " ".join(self.words[:i])
             self.surprisal[lab] = get_surprisal(backend=backend, prefix=prefix, word=self.words[i])
             if log_writer:
-                log_writer.writerow(["real_word", set_id, lab, prefix, self.words[i], "", self.surprisal[lab], ""])
+                log_writer.writerow(["real_word", set_id, lab, prefix, self.words[i], "", self.surprisal[lab], "", True])
             
 
 
@@ -97,32 +125,40 @@ class Label:
         distractor_opts = dict.get_potential_distractors(min_length, max_length, min_freq, max_freq, params)
         avoid = [strip_punct(word).lower() for word in self.words]
 
+        candidates = [dist for dist in distractor_opts if dist not in banned and dist not in avoid]
+        # A score that meets its target may be a lower bound, which is all the
+        # gap ranking needs; min_surprisal ranks fallbacks on exact scores.
+        if params["fallback_ranking"] == "min_surprisal":
+            exact_below = [float("inf")] * len(self.words)
+        else:
+            exact_below = self.surprisal_targets
+
         good = []
         fallback = []  # (rank, word); lower rank is better
 
-        for dist in distractor_opts:
+        for chunk in candidate_chunks(candidates, batched=hasattr(backend, "score_candidates")):
             if len(good) >= n:
                 break
-            if dist in banned or dist in avoid:
-                continue
-            dist_good = True
-            dist_surps = []
-            for i in range(len(self.words)):
-                dist_surp = get_surprisal(backend=backend, prefix=self.prefixes[i], word=dist)
-                dist_surps.append(dist_surp)
+            # scores[i][k]: (surprisal, exact) of chunk[k] after self.prefixes[i]
+            scores = [score_candidates(backend, self.prefixes[i], chunk, exact_below[i])
+                      for i in range(len(self.words))]
+            for k, dist in enumerate(chunk):
+                if len(good) >= n:
+                    break
+                dist_surps = [scores[i][k][0] for i in range(len(self.words))]
                 if log_writer:
-                    log_writer.writerow([
-                        "distractor_candidate", sentence_set_id, self.lab,
-                        self.prefixes[i], dist, self.surprisal_targets[i],
-                        dist_surp, dist_surp >= self.surprisal_targets[i]
-                    ])
-                if dist_surp < self.surprisal_targets[i]:
-                    dist_good = False
-            if dist_good:
-                good.append(dist)
-            else:
-                rank = fallback_rank(dist_surps, self.surprisal_targets, params["fallback_ranking"])
-                fallback.append((rank, dist))
+                    for i in range(len(self.words)):
+                        dist_surp, exact = scores[i][k]
+                        log_writer.writerow([
+                            "distractor_candidate", sentence_set_id, self.lab,
+                            self.prefixes[i], dist, self.surprisal_targets[i],
+                            dist_surp, dist_surp >= self.surprisal_targets[i], exact
+                        ])
+                if all(surp >= target for surp, target in zip(dist_surps, self.surprisal_targets)):
+                    good.append(dist)
+                else:
+                    rank = fallback_rank(dist_surps, self.surprisal_targets, params["fallback_ranking"])
+                    fallback.append((rank, dist))
 
         fallback.sort(key=lambda x: x[0])  # stable, so ties stay in the order found
         result = (good + [w for _, w in fallback])[:n]

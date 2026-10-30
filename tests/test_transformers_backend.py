@@ -125,12 +125,10 @@ class TestStartTokenOnOtherBackends:
             MaskedLMBackend("bert-base-uncased", prepend_start_token=False)
 
     def test_litellm_cannot_prepend_a_start_token(self):
-        pytest.importorskip("litellm")
         with pytest.raises(ValueError, match="prepend_start_token"):
             load_surprisal_model("openai/some-model", backend="litellm", prepend_start_token=True)
 
     def test_litellm_rejects_a_revision(self):
-        pytest.importorskip("litellm")
         with pytest.raises(ValueError, match="revision"):
             load_surprisal_model("openai/some-model", backend="litellm",
                                  prepend_start_token=False, revision="abc123")

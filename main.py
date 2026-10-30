@@ -10,7 +10,8 @@ from output import (save_delim, save_json, save_distractor_summary, save_longfor
                     updated_longform_rows, write_longform_rows, assign_distractors_from_longform)
 from utils import strip_punct
 
-SURPRISAL_LOG_HEADER = ["record_type", "sentence_set_id", "label", "prefix", "word", "surprisal_target", "actual_surprisal", "met_threshold"]
+SURPRISAL_LOG_HEADER = ["record_type", "sentence_set_id", "label", "prefix", "word", "surprisal_target",
+                        "actual_surprisal", "met_threshold", "surprisal_exact"]
 
 
 def read_rejection_file(filepath):
