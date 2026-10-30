@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# prove_it: fast tests—runs every time Claude finishes a response
+# The whole suite takes a few seconds, so it is also the fast suite.
+set -e
+trap 'rc=$?; command -v prove_it >/dev/null 2>&1 && prove_it record --name fast-tests --result $rc' EXIT
+cd "$(dirname "$0")/.."
+.venv/bin/pytest -q -x
