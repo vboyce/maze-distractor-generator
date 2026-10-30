@@ -79,14 +79,14 @@ Surprisal is calculated by tokenizing `prefix + " " + word`, comparing with the 
 
 ## Parameters
 
-Parameters come from a file passed with `-p` (colon-separated `key: value` lines; values are Python literals, so strings need quotes; `#` starts a comment). Keys you leave out get the defaults below. An unknown key is an error, so a typo or an out-of-date key can't be silently ignored. See `params.txt` for an example.
+Parameters come from a file passed with `-p` (colon-separated `key: value` lines; values are Python literals, so strings need quotes; `#` starts a comment). `model` is required (there is no default model); keys you leave out get the defaults below. `--model` on the command line counts as giving it. An unknown key is an error, so a typo or an out-of-date key can't be silently ignored. See `params.txt` for an example.
 
 | Key | Default | Meaning |
 |---|---|---|
 | `min_delta` | `10` | A distractor must be at least this many bits more surprising than the real word... |
 | `min_abs` | `25` | ...and at least this surprising in absolute terms. |
 | `num_to_test` | `100` | Number of candidates drawn per position. |
-| `model` | `"gpt2"` | Model name (Hugging Face id, or a liteLLM model string). |
+| `model` | required | Model name (Hugging Face id, or a liteLLM model string). |
 | `backend` | `"transformers"` | See "Backends". |
 | `max_repeat` | `0` | Maximum times any distractor is used in the whole run (`0` = no limit). `params.txt` uses `1`. |
 | `language` | `"en"` | [wordfreq](https://github.com/rspeer/wordfreq) language code (e.g. `"fr"`, `"de"`, `"zh"`), used for word frequencies. See "Other languages". |
@@ -164,7 +164,7 @@ run_stuff("input.csv", "out.csv", parameters="params.txt", outformat="delim",
           longform_outfile="review.csv", logfile="log.csv")
 ```
 
-`parameters` can also be a dict or `None` (all defaults).
+`parameters` can also be a dict or `None` (all defaults, with the model then given as `model_override`).
 
 ## Tests
 

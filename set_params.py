@@ -10,11 +10,14 @@ DEFAULTS = {
     "dictionary_class": "wordfreq_dict",
     "threshold_loc": "wordfreq_distractor",
     "threshold_name": "get_thresholds",
-    "model": "gpt2",
     "backend": "transformers",
     "max_repeat": 0,
     "language": "en",
 }
+
+# Keys with no default that must be given. There is no default model, so that
+# a run can't silently use a model nobody chose.
+REQUIRED_KEYS = {"model"}
 
 # Keys with no default that the dictionary class reads if present.
 OPTIONAL_KEYS = {"include_words", "exclude_words"}
@@ -31,17 +34,23 @@ def _read_params_file(file):
     return params
 
 
-def set_params(source=None):
+def set_params(source=None, overrides=None):
     """Build a complete parameter dictionary from a file path, a dict, or defaults.
 
     Args:
         source: One of:
             - str: path to a colon-delimited params file
-            - dict: parameter overrides
-            - None: use all defaults
+            - dict: parameter values
+            - None: no values (defaults only; the required keys must then come
+              from overrides)
+        overrides: Optional dict of values that win over source (e.g. from
+            command-line flags). Entries whose value is None are ignored.
 
     Returns:
         dict with all parameters filled in (user values override defaults).
+
+    Raises:
+        ValueError: if a required key is missing or a key is unknown.
     """
     if source is None:
         user_params = {}
@@ -49,6 +58,12 @@ def set_params(source=None):
         user_params = dict(source)
     else:
         user_params = _read_params_file(source)
+    if overrides:
+        user_params.update({key: value for key, value in overrides.items() if value is not None})
+
+    missing = REQUIRED_KEYS - set(user_params)
+    if missing:
+        raise ValueError(f"Missing required parameter(s) {sorted(missing)}.")
 
     params = {}
     for key, default in DEFAULTS.items():
@@ -58,11 +73,11 @@ def set_params(source=None):
             logging.info("Using default %s = %s", key, default)
             params[key] = default
 
-    unknown = set(user_params) - OPTIONAL_KEYS
+    unknown = set(user_params) - REQUIRED_KEYS - OPTIONAL_KEYS
     if unknown:
         raise ValueError(
             f"Unknown parameter(s) {sorted(unknown)}. Known parameters: "
-            f"{sorted(set(DEFAULTS) | OPTIONAL_KEYS)}"
+            f"{sorted(set(DEFAULTS) | REQUIRED_KEYS | OPTIONAL_KEYS)}"
         )
     params.update(user_params)
     return params

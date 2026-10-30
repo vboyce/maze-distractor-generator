@@ -31,6 +31,7 @@ class FakeBackend:
 
 
 PARAMS = {
+    "model": "fake",
     "min_delta": 10,
     "min_abs": 25,
     "num_to_test": 20,
@@ -167,7 +168,7 @@ def test_non_english_run_draws_distractors_from_that_language(tmp_path):
     french_words.write_text("\n".join(wordfreq.top_n_list("fr", 5000)))
     infile = tmp_path / "fr.csv"
     infile.write_text("type,item_num,sentence\nx,1,Le chat dort sur le canapé.\n")
-    params = {"min_delta": 10, "min_abs": 25, "num_to_test": 20, "language": "fr",
+    params = {"model": "fake", "min_delta": 10, "min_abs": 25, "num_to_test": 20, "language": "fr",
               "include_words": str(french_words), "exclude_words": None}
     out = tmp_path / "out.csv"
     with patch("main.load_surprisal_model", return_value=FakeBackend()):
@@ -175,3 +176,18 @@ def test_non_english_run_draws_distractors_from_that_language(tmp_path):
     distractors = read_csv(out)[0]["distractors"].split()[1:]
     french = set(wordfreq.top_n_list("fr", 5000))
     assert all(d.strip(".").lower() in french for d in distractors)
+
+
+def test_run_without_a_model_raises_before_loading_one(infile, tmp_path):
+    params = {key: value for key, value in PARAMS.items() if key != "model"}
+    with patch("main.load_surprisal_model") as load:
+        with pytest.raises(ValueError, match="model"):
+            run_stuff(infile, str(tmp_path / "out.csv"), parameters=params)
+    load.assert_not_called()
+
+
+def test_model_override_supplies_the_required_model(infile, tmp_path):
+    params = {key: value for key, value in PARAMS.items() if key != "model"}
+    with patch("main.load_surprisal_model", return_value=FakeBackend()) as load:
+        run_stuff(infile, str(tmp_path / "out.csv"), parameters=params, model_override="distilgpt2")
+    assert load.call_args.args[0] == "distilgpt2"

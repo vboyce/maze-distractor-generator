@@ -63,7 +63,8 @@ def run_stuff(infile, outfile, logfile=None, summaryfile=None, parameters="param
         infile: Input CSV file with sentences
         outfile: Output file path
         logfile: Optional CSV file to log distractor candidates with their surprisals
-        parameters: A params file path, a dict of parameters, or None for all defaults
+        parameters: A params file path, a dict of parameters, or None (then
+            model_override must name the model)
         outformat: Output format ('delim' or 'json')
         module_name: Name for JSON export (if outformat='json')
         summaryfile: Optional CSV file counting how often each distractor was used
@@ -78,14 +79,12 @@ def run_stuff(infile, outfile, logfile=None, summaryfile=None, parameters="param
     """
     if outformat not in ["delim", "json"]:
         raise ValueError("outfile format not understood: " + outformat)
-    params = set_params(parameters)
+    params = set_params(parameters, overrides={"model": model_override, "backend": backend_override})
     sents = read_input(infile)
     dict_class = getattr(importlib.import_module(params["dictionary_loc"]),
                          params["dictionary_class"])
     d = dict_class(params)
-    model_name = model_override or params["model"]
-    backend_name = backend_override or params["backend"]
-    backend = load_surprisal_model(model_name, backend=backend_name)
+    backend = load_surprisal_model(params["model"], backend=params["backend"])
     threshold_func = getattr(importlib.import_module(params["threshold_loc"]),
                              params["threshold_name"])
     repeats = Repeatcounter(params["max_repeat"])

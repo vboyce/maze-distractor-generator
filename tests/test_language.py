@@ -21,7 +21,7 @@ def ln_freq(word, lang):
 
 
 def test_language_defaults_to_english():
-    assert set_params(None)["language"] == "en"
+    assert set_params({"model": "gpt2"})["language"] == "en"
 
 
 class TestThresholds:

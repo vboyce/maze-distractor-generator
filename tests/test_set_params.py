@@ -7,8 +7,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from set_params import set_params, DEFAULTS
 
 
-def test_no_source_gives_all_defaults():
-    assert set_params(None) == DEFAULTS
+def test_keys_left_out_get_the_defaults():
+    assert set_params({"model": "gpt2"}) == {**DEFAULTS, "model": "gpt2"}
 
 
 def test_dict_values_override_defaults():
@@ -16,6 +16,32 @@ def test_dict_values_override_defaults():
     assert params["min_delta"] == 5
     assert params["model"] == "distilgpt2"
     assert params["min_abs"] == DEFAULTS["min_abs"]
+
+
+def test_model_has_no_default():
+    """A run with no model named would silently use whichever one was the default."""
+    with pytest.raises(ValueError, match="model"):
+        set_params({"min_delta": 5})
+
+
+def test_no_source_and_no_model_raises():
+    with pytest.raises(ValueError, match="model"):
+        set_params(None)
+
+
+def test_overrides_supply_a_missing_model():
+    assert set_params(None, overrides={"model": "distilgpt2"})["model"] == "distilgpt2"
+
+
+def test_overrides_win_over_the_source():
+    params = set_params({"model": "gpt2"}, overrides={"model": "distilgpt2"})
+    assert params["model"] == "distilgpt2"
+
+
+def test_override_of_none_is_ignored():
+    """CLI flags that weren't given arrive as None."""
+    params = set_params({"model": "gpt2"}, overrides={"model": None})
+    assert params["model"] == "gpt2"
 
 
 def test_reads_params_file_and_skips_comments(tmp_path):
@@ -27,7 +53,7 @@ def test_reads_params_file_and_skips_comments(tmp_path):
 
 
 def test_word_list_keys_are_accepted(tmp_path):
-    params = set_params({"include_words": "curated_word_list.txt", "exclude_words": "exclude.txt"})
+    params = set_params({"model": "gpt2", "include_words": "curated_word_list.txt", "exclude_words": "exclude.txt"})
     assert params["include_words"] == "curated_word_list.txt"
 
 
@@ -35,4 +61,4 @@ def test_unknown_key_raises():
     """Old params files use keys like model_loc that the code no longer reads;
     silently ignoring them would run with the wrong model."""
     with pytest.raises(ValueError, match="model_loc"):
-        set_params({"model_loc": "french_data/model.pt"})
+        set_params({"model": "gpt2", "model_loc": "french_data/model.pt"})
