@@ -64,6 +64,10 @@ had back, except where noted.
 - **A custom `dictionary_class`** must have an `often_capitalized` attribute
   when `check_often_capitalized` is on, and a `noun_phrase_breakers`
   attribute when `break_noun_phrases` is on.
+- **`distractor.distractor_dict` is removed.** It was an empty base class
+  whose methods did nothing; a custom `dictionary_class` that subclassed it
+  should drop the base class. `wordfreq_dict.in_dict` and
+  `output.save_updated_longform` (unused) are removed too.
 - **Models are loaded as float32**, and a sentence longer than the model can
   read is an error. From Amani Maina-Kilaas's generator.
 
@@ -96,6 +100,8 @@ had back, except where noted.
 - `check_distractors.py` stops, before any API call, at a row with a
   different number of distractors than words. Before, a missing distractor
   was recorded as judged ungrammatical.
+- `--summary` no longer counts the first word's `x-x-x`, and counts
+  `NO-DISTRACTOR` as itself rather than as "no-distractor".
 - `benchmark.py` stops at a model that fails. Before, it logged the error
   and went on to the next model.
 
@@ -108,7 +114,8 @@ had back, except where noted.
   Maina-Kilaas's generator.
 - **`revision`** pins the Hugging Face model version.
 - **Run record**, written every run beside the output (`OUTPUT.run.json`):
-  the generator commit, model and resolved model commit, package versions,
+  the generator commit and the files that differ from it, model and
+  resolved model commit, package versions,
   every parameter, and checksums of the input and word lists.
 - **`--report FILE`**: each position's frequencies, surprisal target,
   distractor surprisal and whether it met the target. Every run now ends

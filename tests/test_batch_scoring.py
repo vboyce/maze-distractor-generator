@@ -123,6 +123,28 @@ class TestScoreCandidates:
         with pytest.raises(ValueError, match="longer than the model reads"):
             fast_backend.score_candidates(" ".join(["cat"] * MAX_POSITIONS), ["dog"], exact_below=0.0)
 
+    def test_zero_probability_after_the_first_token_names_the_word(self, tiny_lm_dir):
+        """The error used to name the candidate's index in an internal batch."""
+        import torch
+        from tests.tiny_lm import VOCAB
+        backend = CausalLMBackend(tiny_lm_dir)
+        real_model = backend.model
+        ran = VOCAB.index("ran")
+        context_width = 2  # start token + "The"
+
+        class RanImpossibleAfterTheContext(torch.nn.Module):
+            config = real_model.config
+
+            def forward(self, input_ids):
+                output = real_model(input_ids)
+                if input_ids.shape[1] > context_width:
+                    output.logits[:, :, ran] = -float("inf")
+                return output
+
+        backend.model = RanImpossibleAfterTheContext()
+        with pytest.raises(ValueError, match="'cat ran'"):
+            backend.score_candidates("The", ["dog", "cat ran"], exact_below=float("inf"))
+
 
 class CountingBackend:
     """Fake fast-path backend: every candidate scores 40 bits, exactly."""

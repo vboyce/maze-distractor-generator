@@ -158,19 +158,19 @@ def run_stuff(infile, outfile, logfile=None, summaryfile=None, parameters="param
 
     processed_sents = sents if rejected_items is None else {
         id: ss for id, ss in sents.items() if id in rejected_items}
-    rows = report_rows(processed_sents, params["language"])
-    log_shortfalls(rows)
+    position_report = report_rows(processed_sents, params["language"])
+    log_shortfalls(position_report)
     if report_outfile:
-        save_report(report_outfile, rows)
+        save_report(report_outfile, position_report)
 
     if rejection_file:
         # In rejection mode, the review file is the record of every distractor:
         # merge the regenerated ones into it, then build the sentence-level output
         # (all sentences) from it.
-        fieldnames, rows = updated_longform_rows(rejection_file, processed_sents)
+        review_fieldnames, review_rows = updated_longform_rows(rejection_file, processed_sents)
         if longform_outfile:
-            write_longform_rows(longform_outfile, fieldnames, rows)
-        assign_distractors_from_longform(sents, rows)
+            write_longform_rows(longform_outfile, review_fieldnames, review_rows)
+        assign_distractors_from_longform(sents, review_rows)
         if outfile:
             if outformat == "json":
                 save_json(outfile, sents, module_name)

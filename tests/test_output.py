@@ -7,7 +7,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from sentence_set import Sentence, Sentence_Set
-from output import save_longform, save_updated_longform
+from output import save_longform, updated_longform_rows, write_longform_rows
 
 
 def make_complete_ss(label_options=None):
@@ -96,7 +96,12 @@ class TestSaveLongform:
         assert all(row["rejected"] == "" for row in rows)
 
 
-# --- save_updated_longform ---
+# --- updating a review file, as main.run_stuff does in rejection mode ---
+
+
+def save_updated_longform(outfile, original_longform_path, all_sentences):
+    fieldnames, rows = updated_longform_rows(original_longform_path, all_sentences)
+    write_longform_rows(outfile, fieldnames, rows)
 
 ORIGINAL_REVIEW = """\
 type,item_num,label,prefix,real_word,distractor,options,rejected
@@ -201,3 +206,16 @@ def test_save_json_uses_jspsych_maze_key_names(tmp_path):
     items = json.loads(text[len("export const stimuli = "):].rstrip().rstrip(";"))
     assert items[0]["sent"] == "The cat sat"
     assert items[0]["distractor"] == "x-x-x dog run"
+
+
+# --- save_distractor_summary ---
+
+def test_summary_counts_distractors_but_not_the_first_word_placeholder(tmp_path):
+    from output import save_distractor_summary
+    from sentence_set import NO_DISTRACTOR
+    ss = make_complete_ss()
+    ss.sentences[0].distractors = ["x-x-x", "Dog,", NO_DISTRACTOR + "."]
+    outfile = str(tmp_path / "summary.csv")
+    save_distractor_summary(outfile, {"1": ss})
+    counts = {row["distractor"]: row["count"] for row in read_longform(outfile)}
+    assert counts == {"dog": "1", NO_DISTRACTOR: "1"}

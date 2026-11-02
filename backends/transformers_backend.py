@@ -80,14 +80,13 @@ class _TransformersBase:
         prefix_tokens = self.tokenizer.encode(prefix, add_special_tokens=False, return_tensors="pt").to(self.device)
         prefix_len = prefix_tokens.shape[1]
 
-        if prefix_len > 0 and not torch.equal(prefix_tokens[0], full_tokens[0, :prefix_len]):
-            prefix_list = prefix_tokens[0].tolist()
-            full_list = full_tokens[0].tolist()
-            if full_list[:prefix_len] != prefix_list:
-                raise ValueError(
-                    f"Prefix tokenization doesn't align with full text. "
-                    f"Prefix tokens: {prefix_list}, Full start: {full_list[:prefix_len + 3]}"
-                )
+        prefix_list = prefix_tokens[0].tolist()
+        full_list = full_tokens[0].tolist()
+        if full_list[:prefix_len] != prefix_list:
+            raise ValueError(
+                f"Prefix tokenization doesn't align with full text. "
+                f"Prefix tokens: {prefix_list}, Full start: {full_list[:prefix_len + 3]}"
+            )
 
         word_tokens = full_tokens[:, prefix_len:]
         if word_tokens.shape[1] == 0:
@@ -177,7 +176,7 @@ class CausalLMBackend(_TransformersBase):
         exact_below=inf for exact scores throughout.
         """
         results = [None] * len(candidates)
-        pending = []  # (candidate index, context + word token ids, number of context tokens)
+        pending = []  # (candidate index, word, context + word token ids, number of context tokens)
         for k, word in enumerate(candidates):
             context_tokens, word_tokens = self._context_tokens(prefix, word)
             first_id = word_tokens[0, 0]
@@ -191,37 +190,37 @@ class CausalLMBackend(_TransformersBase):
                 results[k] = (first, False)
             else:
                 token_ids = context_tokens[0].tolist() + word_tokens[0].tolist()
-                pending.append((k, token_ids, context_tokens.shape[1]))
-        for (k, _, _), surprisal in zip(pending, self._score_suffixes(pending, base)):
+                pending.append((k, word, token_ids, context_tokens.shape[1]))
+        for (k, _, _, _), surprisal in zip(pending, self._score_suffixes(pending, base)):
             results[k] = (surprisal, True)
         return results
 
     def _score_suffixes(self, pending, base: float):
-        """For each (index, token_ids, n_context) in pending, the summed
+        """For each (index, word, token_ids, n_context) in pending, the summed
         surprisal of token_ids[n_context:] given the tokens before them.
 
         Sequences are batched only with others of the same length, so no
         padding or attention mask is needed."""
         totals = [None] * len(pending)
         by_length = {}
-        for i, (_, token_ids, _) in enumerate(pending):
+        for i, (_, _, token_ids, _) in enumerate(pending):
             by_length.setdefault(len(token_ids), []).append(i)
         vocab_size = self.model.config.vocab_size
         for width, indices in by_length.items():
             batch_size = max(1, _LOGIT_BUDGET // (width * vocab_size))
             for start in range(0, len(indices), batch_size):
                 batch = indices[start:start + batch_size]
-                input_ids = torch.tensor([pending[i][1] for i in batch], device=self.device)
+                input_ids = torch.tensor([pending[i][2] for i in batch], device=self.device)
                 with torch.no_grad():
                     logits = self.model(input_ids).logits
                 for row, i in enumerate(batch):
-                    _, token_ids, n_context = pending[i]
+                    _, word, token_ids, n_context = pending[i]
                     # Position p predicts token p + 1.
                     log_probs = torch.log_softmax(logits[row, n_context - 1:width - 1], dim=-1)
                     suffix = torch.tensor(token_ids[n_context:], device=log_probs.device)
                     token_log_probs = log_probs[torch.arange(len(suffix)), suffix]
                     if not torch.isfinite(token_log_probs).all():
-                        raise ValueError(f"Model assigned zero probability to a token of candidate {i}")
+                        raise ValueError(f"Model assigned zero probability to a token of {word!r}")
                     totals[i] = -token_log_probs.sum().item() / np.log(base)
         return totals
 

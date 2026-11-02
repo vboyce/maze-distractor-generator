@@ -7,7 +7,7 @@ import hashlib
 import os
 
 import utils
-from distractor import distractor_dict, distractor
+from distractor import distractor
 
 def check_language(language):
     """Raise if wordfreq has no frequency data for this language code."""
@@ -46,7 +46,7 @@ def read_word_list(path):
         return [line.strip() for line in f]
 
 
-class wordfreq_dict(distractor_dict):
+class wordfreq_dict:
     """Candidate distractors, with frequencies from wordfreq for params["language"]
     (a wordfreq language code, default "en").
 
@@ -117,13 +117,6 @@ class wordfreq_dict(distractor_dict):
         if self.language == "en":
             return re.match("^[a-z]+$", word) is not None
         return word.isalpha() and word.islower()
-
-    def in_dict(self, test_word):
-        """Test to see if word is in dictionary"""
-        for word in self.words:
-            if word.text == test_word:
-                return word
-        return False
 
     def get_words(self, length_low, length_high, freq_low, freq_high):
         """Returns a list of words within specified ranges"""

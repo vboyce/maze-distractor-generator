@@ -34,16 +34,19 @@ def file_entry(path):
 
 
 def generator_commit():
-    """The generator's git commit, and whether its files differ from it.
-    Both None, with a warning, if the generator is not a git checkout."""
+    """The generator's git commit, and the files that differ from it
+    (modified, or untracked and not ignored), sorted; [] if none. Both None,
+    with a warning, if the generator is not a git checkout."""
     head = subprocess.run(["git", "-C", GENERATOR_DIR, "rev-parse", "HEAD"], capture_output=True, text=True)
     if head.returncode != 0:
         logging.warning("The generator is not a git checkout, so the run record has no commit: %s",
                         head.stderr.strip())
         return {"commit": None, "uncommitted_changes": None}
-    status = subprocess.run(["git", "-C", GENERATOR_DIR, "status", "--porcelain", "--untracked-files=no"],
-                            capture_output=True, text=True, check=True)
-    return {"commit": head.stdout.strip(), "uncommitted_changes": bool(status.stdout.strip())}
+    # -z: one NUL-separated "XY path" entry per file, paths unquoted.
+    status = subprocess.run(["git", "-C", GENERATOR_DIR, "status", "--porcelain", "-z", "--untracked-files=all",
+                             "--no-renames"], capture_output=True, text=True, check=True)
+    changed = sorted(entry[3:] for entry in status.stdout.split("\0") if entry)
+    return {"commit": head.stdout.strip(), "uncommitted_changes": changed}
 
 
 def word_list_entries(dictionary, dictionary_class):

@@ -183,13 +183,6 @@ def write_longform_rows(outfile, fieldnames, rows):
         writer.writerows(rows)
 
 
-def save_updated_longform(outfile, original_longform_path, all_sentences):
-    """Update a longform review file with newly generated distractors for rejected
-    labels (see updated_longform_rows) and write it to outfile."""
-    fieldnames, rows = updated_longform_rows(original_longform_path, all_sentences)
-    write_longform_rows(outfile, fieldnames, rows)
-
-
 def assign_distractors_from_longform(all_sentences, rows):
     """Set every sentence's distractors from longform rows (e.g. a reviewed file),
     so the sentence-level output reflects the review. Raises if a word position
@@ -211,7 +204,10 @@ def assign_distractors_from_longform(all_sentences, rows):
 
 
 def save_distractor_summary(outfile, all_sentences):
-    """Saves a CSV summarizing distractor usage: each distinct distractor and its count.
+    """Saves a CSV summarizing distractor usage: each distinct distractor
+    (lowercased, without punctuation) and its count. The first word's x-x-x
+    placeholder is not counted; NO_DISTRACTOR is counted as itself, so the
+    summary shows how many positions got none.
 
     Args:
         outfile: path to the output CSV file
@@ -223,8 +219,9 @@ def save_distractor_summary(outfile, all_sentences):
     counts = Counter()
     for sentence_set in all_sentences.values():
         for sentence in sentence_set.sentences:
-            for word in sentence.distractors:
-                counts[strip_punct(word).lower()] += 1
+            for shown in sentence.distractors[1:]:
+                word = strip_punct(shown)
+                counts[word if word == NO_DISTRACTOR else word.lower()] += 1
     with open(outfile, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["distractor", "count"])

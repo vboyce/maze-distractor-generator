@@ -28,7 +28,7 @@ foo2 <- file2 |>
 ggplot(foo2, aes(x = word_position, y = value, color = type)) +
   stat_summary(fun.data = "mean_cl_boot") +
   coord_cartesian(xlim = c(0, 28))
-file |> filter(!is_target_grammatical)
+file2 |> filter(!is_target_grammatical)
 
 file2 |>
   filter(is_distractor_grammatical) |>

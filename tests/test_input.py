@@ -32,7 +32,7 @@ def test_labels_column_is_used_when_present(tmp_path):
 
 
 def test_labels_of_the_wrong_length_raise(tmp_path):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="line 2 .*2 labels for 3 words"):
         read_input(write(tmp_path, "type,item_num,sentence,labels\na,1,The cat sat.,pre cat\n"))
 
 

@@ -122,7 +122,6 @@ class Sentence:
             self.tag = tag  # group/type
             self.distractors = ["x-x-x"]  # the first word has no context, so it gets a placeholder distractor
             self.distractor_sentence = ""
-            self.probs = {}  # using a dictionary so we can start at 1 and not 0
             self.surprisal = {}
         else:
             raise ValueError("duplicate labels on sentence " + " ".join(words) + " with labels " + " ".join(labels))
