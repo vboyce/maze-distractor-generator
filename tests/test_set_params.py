@@ -9,7 +9,8 @@ from set_params import set_params, DEFAULTS
 
 def test_keys_left_out_get_the_defaults():
     assert set_params({"model": "gpt2"}) == {**DEFAULTS, "model": "gpt2",
-                                             "avoid_names_and_abbreviations": True}
+                                             "avoid_names_and_abbreviations": True,
+                                             "check_often_capitalized": True}
 
 
 def test_dict_values_override_defaults():
@@ -126,3 +127,27 @@ def test_avoiding_names_and_abbreviations_outside_english_raises():
 def test_avoid_names_and_abbreviations_must_be_true_or_false():
     with pytest.raises(ValueError, match="avoid_names_and_abbreviations"):
         set_params({"model": "gpt2", "avoid_names_and_abbreviations": "yes"})
+
+
+def test_often_capitalized_words_are_checked_by_default_in_english():
+    assert set_params({"model": "gpt2"})["check_often_capitalized"] is True
+
+
+def test_often_capitalized_words_are_not_checked_by_default_in_other_languages():
+    assert set_params({"model": "gpt2", "language": "fr"})["check_often_capitalized"] is False
+
+
+def test_checking_often_capitalized_words_outside_english_raises():
+    with pytest.raises(ValueError, match="check_often_capitalized"):
+        set_params({"model": "gpt2", "language": "fr", "check_often_capitalized": True})
+
+
+# --- Capitalization as shown: on by default in every language ---
+
+def test_shown_case_is_checked_by_default():
+    assert set_params({"model": "gpt2", "language": "fr"})["check_shown_case"] is True
+
+
+def test_check_shown_case_must_be_true_or_false():
+    with pytest.raises(ValueError, match="check_shown_case"):
+        set_params({"model": "gpt2", "check_shown_case": "yes"})

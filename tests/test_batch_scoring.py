@@ -33,20 +33,28 @@ def fast_backend(tiny_lm_dir):
     return CausalLMBackend(tiny_lm_dir)
 
 
-def run_item(backend, fallback_ranking, num_options):
+LOWERCASE_ITEM = [["The", "cat", "sat."], ["A", "dog", "ran."]]
+# Capitalized real words, so each candidate is also scored capitalized.
+CAPITALIZED_ITEM = [["The", "Cat", "sat."], ["A", "Dog", "Ran."]]
+
+
+def run_item(backend, fallback_ranking, num_options, sentences=LOWERCASE_ITEM, often_capitalized=()):
     """Distractors for a two-sentence item whose labels are shared; the tiny
     model's surprisals are around 3.3 bits a token, so with these targets
     some candidates pass and some don't."""
     ss = Sentence_Set("1")
-    for words, tag in [(["The", "cat", "sat."], "a"), (["A", "dog", "ran."], "b")]:
+    for words, tag in zip(sentences, ["a", "b"]):
         ss.add(Sentence(words, [0, 1, 2], "1", tag))
     ss.do_surprisals(backend)
     ss.make_labels()
     # The pool is the tiny vocabulary, which is also the item's words, so
     # avoid_item_words is off.
     params = {"min_abs": 3.4, "min_delta": 0, "num_to_test": len(POOL), "fallback_ranking": fallback_ranking,
-              "avoid_item_words": False}
-    ss.do_distractors(backend, mock_dict(POOL), threshold_func, params, Repeatcounter(0), num_options=num_options)
+              "avoid_item_words": False, "check_shown_case": True,
+              "check_often_capitalized": bool(often_capitalized)}
+    dictionary = mock_dict(POOL)
+    dictionary.often_capitalized = set(often_capitalized)
+    ss.do_distractors(backend, dictionary, threshold_func, params, Repeatcounter(0), num_options=num_options)
     return ss.label_options, [s.distractor_sentence for s in ss.sentences]
 
 
@@ -55,6 +63,15 @@ def run_item(backend, fallback_ranking, num_options):
 def test_batch_scoring_chooses_what_one_at_a_time_chooses(fast_backend, fallback_ranking, num_options):
     fast = run_item(fast_backend, fallback_ranking, num_options)
     slow = run_item(OneAtATime(fast_backend), fallback_ranking, num_options)
+    assert fast == slow
+
+
+@pytest.mark.parametrize("fallback_ranking", ["gap", "min_surprisal"])
+def test_batch_scoring_chooses_what_one_at_a_time_chooses_with_capitalized_forms(fast_backend, fallback_ranking):
+    """Each chunk mixes lowercase and capitalized forms of its candidates."""
+    item = {"sentences": CAPITALIZED_ITEM, "often_capitalized": ["dog", "sat"]}
+    fast = run_item(fast_backend, fallback_ranking, 5, **item)
+    slow = run_item(OneAtATime(fast_backend), fallback_ranking, 5, **item)
     assert fast == slow
 
 

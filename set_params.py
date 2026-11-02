@@ -19,6 +19,7 @@ DEFAULTS = {
     "candidate_order": "random",
     "seed": 0,
     "avoid_item_words": True,
+    "check_shown_case": True,
 }
 
 # Keys whose value must be one of a fixed set.
@@ -27,11 +28,12 @@ ALLOWED_VALUES = {
     "prepend_start_token": (True, False),
     "candidate_order": ("closest", "random"),
     "avoid_item_words": (True, False),
+    "check_shown_case": (True, False),
 }
 
 # Heuristics that use English word lists. Each defaults to on when language is
 # "en" and off otherwise; turning one on for another language is an error.
-ENGLISH_ONLY_KEYS = ("avoid_names_and_abbreviations",)
+ENGLISH_ONLY_KEYS = ("avoid_names_and_abbreviations", "check_often_capitalized")
 
 # Keys with no default that must be given. There is no default model, so that
 # a run can't silently use a model nobody chose.

@@ -79,6 +79,6 @@ def test_label_passes_params_to_the_threshold_function():
     lab = Label("1", "1")
     lab.add_sentence("maison", "La", 8.0)
     params = {"min_abs": 25, "min_delta": 10, "num_to_test": 10, "language": "fr", "fallback_ranking": "gap",
-              "avoid_item_words": True}
+              "avoid_item_words": True, "check_shown_case": True, "check_often_capitalized": False}
     lab.choose_distractor(None, NoCandidates(), threshold_func, params, [], "1")
     assert seen["params"]["language"] == "fr"

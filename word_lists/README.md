@@ -18,6 +18,16 @@ They are used only when `language` is `"en"`.
   Government Publishing Office's *Style Manual*, that is capitalized at least
   50% of the time in SUBTLEX-US and occurs in lowercase less than 10 per
   million words.
+- `often_capitalized.txt` (703 words), with `check_often_capitalized`: words
+  that must meet their surprisal target capitalized too, since a reader may
+  take them for a name, place or title ("grace", "oxford", "academy"). A word
+  is on it if SUBTLEX-US has it capitalized at least 40% of the time and
+  `gpt2-medium` prefers it capitalized mid-sentence by at least 3 bits (6
+  bits, for a word SUBTLEX-US lacks). Only words of `curated_word_list.txt`
+  were checked, so every word on it is on `curated_word_list.txt`, but a word
+  you add to that list, or a word of your own `include_words` list, is not
+  checked. To cover new words, rebuild it with
+  `scripts/build_often_capitalized_list.py` in Amani's repository.
 
 Only 31 of the names and 2 of the abbreviations are on `curated_word_list.txt`,
 so with the default word list this leaves out few words; it matters more for

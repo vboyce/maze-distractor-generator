@@ -16,6 +16,26 @@ def item_words(words):
     and "well-known" gives "well" and "known"."""
     return {part for word in words for part in re.findall(r"[^\W\d_]+", word.lower())}
 
+
+def forms_to_score(target_word, candidate, check_shown_case, often_capitalized):
+    """The forms of a (lowercase) candidate that must each meet the target
+    at target_word's position: always the lowercase form; with
+    check_shown_case, also the form it is shown in (its case copied from
+    target_word, see copy_punct); and if it is often_capitalized, also
+    capitalized, since a reader may take "grace" for the name Grace.
+
+    The model can find a capitalized word unsurprising as a name where a
+    reader who knows the word would not, and the reverse. Ported, in outline,
+    from Amani Maina-Kilaas's maze-distractor-generator (generation.py
+    _variant_keys), GPL-3.
+    """
+    forms = [candidate]
+    if check_shown_case:
+        forms.append(strip_punct(copy_punct(target_word, candidate)))
+    if often_capitalized:
+        forms.append(candidate.capitalize())
+    return list(dict.fromkeys(forms))
+
 # Backends with a score_candidates method score this many candidates at
 # once, then twice as many, and so on, until enough good ones are found.
 FIRST_CHUNK = 16
@@ -116,12 +136,14 @@ class Label:
         self.prefixes.append(prefix)
         self.surprisals.append(surprisal)
 
-    def choose_top_n_distractors(self, n, backend, dict, threshold_func, params, banned, sentence_set_id, log_writer=None):
+    def choose_top_n_distractors(self, n, backend, dictionary, threshold_func, params, banned, sentence_set_id, log_writer=None):
         """Return up to n distractor candidates, best first.
 
         A candidate is "good" if its surprisal meets the target
         (max(min_abs, real word's surprisal + min_delta)) after every prefix
-        with this label. Good candidates come first, in the order found; then
+        with this label, in every form scored there (see forms_to_score:
+        lowercase, and with params["check_shown_case"] and
+        params["check_often_capitalized"], capitalized). Good candidates come first, in the order found; then
         the rest, ranked by params["fallback_ranking"] (see fallback_rank),
         ties in the order found. The search stops
         once n good candidates are found. Candidates on `banned` and the real
@@ -134,10 +156,10 @@ class Label:
             self.surprisal_targets.append(max(params["min_abs"], surprisal + params["min_delta"]))
         min_length, max_length, min_freq, max_freq = threshold_func(self.words, params)
         avoid = [strip_punct(word).lower() for word in self.words]
-        distractor_opts = dict.get_potential_distractors(min_length, max_length, min_freq, max_freq, params,
-                                                         target_words=self.words,
-                                                         order_key=f"{self.id}\0{self.lab}",
-                                                         avoid=list(banned) + avoid)
+        distractor_opts = dictionary.get_potential_distractors(min_length, max_length, min_freq, max_freq, params,
+                                                               target_words=self.words,
+                                                               order_key=f"{self.id}\0{self.lab}",
+                                                               avoid=list(banned) + avoid)
 
         candidates = [dist for dist in distractor_opts if dist not in banned and dist not in avoid]
         # A score that meets its target may be a lower bound, which is all the
@@ -147,31 +169,42 @@ class Label:
         else:
             exact_below = self.surprisal_targets
 
+        listed = dictionary.often_capitalized if params["check_often_capitalized"] else set()
+        positions = range(len(self.words))
+
         good = []
         fallback = []  # (rank, word); lower rank is better
 
         for chunk in candidate_chunks(candidates, batched=hasattr(backend, "score_candidates")):
             if len(good) >= n:
                 break
-            # scores[i][k]: (surprisal, exact) of chunk[k] after self.prefixes[i]
-            scores = [score_candidates(backend, self.prefixes[i], chunk, exact_below[i])
-                      for i in range(len(self.words))]
+            # forms[k][i]: the forms of chunk[k] that must meet the target after self.prefixes[i]
+            forms = [[forms_to_score(self.words[i], dist, params["check_shown_case"], dist in listed)
+                      for i in positions] for dist in chunk]
+            # scores[i][form]: (surprisal, exact) of form after self.prefixes[i]
+            scores = []
+            for i in positions:
+                to_score = list(dict.fromkeys(form for dist_forms in forms for form in dist_forms[i]))
+                scores.append(dict(zip(to_score, score_candidates(backend, self.prefixes[i], to_score, exact_below[i]))))
             for k, dist in enumerate(chunk):
                 if len(good) >= n:
                     break
-                dist_surps = [scores[i][k][0] for i in range(len(self.words))]
+                # (surprisal, target) of each form at each position
+                results = [(scores[i][form][0], self.surprisal_targets[i]) for i in positions for form in forms[k][i]]
                 if log_writer:
-                    for i in range(len(self.words)):
-                        dist_surp, exact = scores[i][k]
-                        log_writer.writerow([
-                            "distractor_candidate", sentence_set_id, self.lab,
-                            self.prefixes[i], dist, self.surprisal_targets[i],
-                            dist_surp, dist_surp >= self.surprisal_targets[i], exact
-                        ])
-                if all(surp >= target for surp, target in zip(dist_surps, self.surprisal_targets)):
+                    for i in positions:
+                        for form in forms[k][i]:
+                            dist_surp, exact = scores[i][form]
+                            log_writer.writerow([
+                                "distractor_candidate", sentence_set_id, self.lab,
+                                self.prefixes[i], form, self.surprisal_targets[i],
+                                dist_surp, dist_surp >= self.surprisal_targets[i], exact
+                            ])
+                if all(surp >= target for surp, target in results):
                     good.append(dist)
                 else:
-                    rank = fallback_rank(dist_surps, self.surprisal_targets, params["fallback_ranking"])
+                    rank = fallback_rank([surp for surp, _ in results], [target for _, target in results],
+                                         params["fallback_ranking"])
                     fallback.append((rank, dist))
 
         fallback.sort(key=lambda x: x[0])  # stable, so ties stay in the order found
@@ -184,13 +217,13 @@ class Label:
             self.distractor = NO_DISTRACTOR
         return result
 
-    def choose_distractor(self, backend, dict, threshold_func, params, banned, sentence_set_id, log_writer=None):
+    def choose_distractor(self, backend, dictionary, threshold_func, params, banned, sentence_set_id, log_writer=None):
         """Choose one distractor: the first candidate that meets the surprisal
         target in every sentence with this label, or else the best fallback
         (see choose_top_n_distractors). Candidates on `banned` (used too often, or
         already used in this sentence set) and the real words are skipped.
         Returns NO_DISTRACTOR if there are no candidates."""
-        self.choose_top_n_distractors(1, backend, dict, threshold_func, params, banned, sentence_set_id, log_writer)
+        self.choose_top_n_distractors(1, backend, dictionary, threshold_func, params, banned, sentence_set_id, log_writer)
         return self.distractor
 
 

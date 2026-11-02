@@ -298,3 +298,40 @@ def test_first_names_are_not_used_as_distractors_by_default(tmp_path):
     with patch("main.load_surprisal_model", return_value=FakeBackend()):
         run_stuff(str(infile), str(tmp_path / "out.csv"), parameters=params)
     assert read_csv(tmp_path / "out.csv")[0]["distractors"] == "x-x-x sings."
+
+
+class CaseSensitiveBackend:
+    """Real words are unsurprising. "acid" and "angel" meet the target (25)
+    in lowercase but not capitalized; "actor" falls 5 short in either case."""
+
+    def get_surprisal(self, prefix, word, base=2.0):
+        if word.lower() in {"birds", "sing", "sing."}:
+            return 2.0
+        if word in {"acid", "angel"}:
+            return 40.0
+        if word in {"Acid", "Angel"}:
+            return 2.0
+        return 20.0
+
+
+def run_with_words(tmp_path, sentence, words):
+    infile = tmp_path / "in.csv"
+    infile.write_text(f"type,item_num,sentence\nx,1,{sentence}\n")
+    word_file = tmp_path / "words.txt"
+    word_file.write_text("\n".join(words) + "\n")
+    params = {**PARAMS, "include_words": str(word_file)}
+    with patch("main.load_surprisal_model", return_value=CaseSensitiveBackend()):
+        run_stuff(str(infile), str(tmp_path / "out.csv"), parameters=params)
+    return read_csv(tmp_path / "out.csv")[0]["distractors"]
+
+
+def test_a_distractor_shown_capitalized_must_meet_the_target_capitalized(tmp_path):
+    """"Sing" is capitalized, so its distractor is shown capitalized. "Acid"
+    misses the target by 23 bits; "Actor" by 5, so it is the better fallback."""
+    assert run_with_words(tmp_path, "Birds Sing.", ["acid", "actor"]) == "x-x-x Actor."
+
+
+def test_an_often_capitalized_word_must_meet_the_target_capitalized(tmp_path):
+    """A reader may take "angel" for the name Angel, so it is scored
+    capitalized too, though shown in lowercase."""
+    assert run_with_words(tmp_path, "Birds sing.", ["angel", "actor"]) == "x-x-x actor."

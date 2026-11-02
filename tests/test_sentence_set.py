@@ -5,11 +5,11 @@ from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from sentence_set import Label, Sentence, Sentence_Set, item_words
+from sentence_set import Label, Sentence, Sentence_Set, item_words, forms_to_score
 from limit_repeats import Repeatcounter
 
 PARAMS = {"min_abs": 25, "min_delta": 10, "num_to_test": 100, "fallback_ranking": "gap",
-          "avoid_item_words": True}
+          "avoid_item_words": True, "check_shown_case": True, "check_often_capitalized": False}
 
 
 def make_label(word="cat", prefix="The", surprisal=8.0):
@@ -333,3 +333,65 @@ def test_labels_are_processed_in_order_of_first_appearance():
     with patch("sentence_set.get_surprisal", return_value=30.0):
         ss.do_distractors(None, mock_dict(["dog"]), recording_threshold_func, PARAMS, Repeatcounter(0))
     assert seen == words[1:]
+
+
+# --- Capitalization (check_shown_case, check_often_capitalized) ---
+
+class TestFormsToScore:
+    def test_a_lowercase_target_s_distractor_is_scored_in_lowercase_only(self):
+        assert forms_to_score("sing.", "acid", check_shown_case=True, often_capitalized=False) == ["acid"]
+
+    def test_a_distractor_shown_capitalized_is_scored_both_ways(self):
+        assert forms_to_score("Sing.", "acid", check_shown_case=True, often_capitalized=False) == ["acid", "Acid"]
+
+    def test_a_distractor_shown_in_capitals_is_scored_both_ways(self):
+        assert forms_to_score("NASA", "acid", check_shown_case=True, often_capitalized=False) == ["acid", "ACID"]
+
+    def test_without_check_shown_case_only_lowercase_is_scored(self):
+        assert forms_to_score("Sing.", "acid", check_shown_case=False, often_capitalized=False) == ["acid"]
+
+    def test_an_often_capitalized_word_is_scored_capitalized_too(self):
+        assert forms_to_score("sing.", "angel", check_shown_case=True, often_capitalized=True) == ["angel", "Angel"]
+
+    def test_forms_are_not_repeated(self):
+        assert forms_to_score("Sing.", "angel", check_shown_case=True, often_capitalized=True) == ["angel", "Angel"]
+
+
+def capital_surprisal(backend, prefix, word):
+    """"dog" meets the target (25) only in lowercase; "rat" either way."""
+    return {"dog": 40.0, "Dog": 2.0}.get(word, 30.0)
+
+
+class TestChoosingWithCapitalization:
+    def test_a_candidate_shown_capitalized_must_meet_the_target_capitalized(self):
+        lab = make_label(word="Cat")
+        with patch("sentence_set.get_surprisal", side_effect=capital_surprisal):
+            assert lab.choose_distractor(None, mock_dict(["dog", "rat"]), threshold_func, PARAMS, [], "1") == "rat"
+
+    def test_without_check_shown_case_only_lowercase_counts(self):
+        lab = make_label(word="Cat")
+        with patch("sentence_set.get_surprisal", side_effect=capital_surprisal):
+            assert lab.choose_distractor(None, mock_dict(["dog", "rat"]), threshold_func,
+                                         {**PARAMS, "check_shown_case": False}, [], "1") == "dog"
+
+    def test_an_often_capitalized_candidate_must_meet_the_target_capitalized(self):
+        lab = make_label(word="cat")
+        d = mock_dict(["dog", "rat"])
+        d.often_capitalized = {"dog"}
+        with patch("sentence_set.get_surprisal", side_effect=capital_surprisal):
+            assert lab.choose_distractor(None, d, threshold_func,
+                                         {**PARAMS, "check_often_capitalized": True}, [], "1") == "rat"
+
+    def test_the_often_capitalized_list_is_ignored_when_not_checked(self):
+        lab = make_label(word="cat")
+        d = mock_dict(["dog", "rat"])
+        d.often_capitalized = {"dog"}
+        with patch("sentence_set.get_surprisal", side_effect=capital_surprisal):
+            assert lab.choose_distractor(None, d, threshold_func, PARAMS, [], "1") == "dog"
+
+    def test_a_fallback_is_ranked_on_its_worst_form(self):
+        """"dog" falls 23 short capitalized; "rat" 5 short in either case."""
+        lab = make_label(word="Cat")
+        with patch("sentence_set.get_surprisal",
+                   side_effect=lambda backend, prefix, word: {"dog": 40.0, "Dog": 2.0}.get(word, 20.0)):
+            assert lab.choose_distractor(None, mock_dict(["dog", "rat"]), threshold_func, PARAMS, [], "1") == "rat"

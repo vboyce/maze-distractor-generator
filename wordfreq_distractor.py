@@ -25,6 +25,7 @@ CANDIDATE_ORDERS = ("closest", "random")
 WORD_LISTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "word_lists")
 NAMES_AND_ABBREVIATIONS = [os.path.join(WORD_LISTS, "first_names.txt"),
                            os.path.join(WORD_LISTS, "abbreviations.txt")]
+OFTEN_CAPITALIZED = os.path.join(WORD_LISTS, "often_capitalized.txt")
 
 
 def hash_order(order_key, word):
@@ -50,7 +51,10 @@ class wordfreq_dict(distractor_dict):
     nouns, abbreviations and words with digits or punctuation are dropped; for
     English, only a-z). With params["avoid_names_and_abbreviations"], the words
     readers know only as a first name or an abbreviation (word_lists/) are left
-    out too.
+    out too. With params["check_often_capitalized"], self.often_capitalized
+    holds the words readers often see capitalized (names, places, titles;
+    word_lists/often_capitalized.txt), which must meet their surprisal target
+    capitalized too (see sentence_set.forms_to_score); otherwise it is empty.
 
     English defaults to curated_word_list.txt; other languages must name their
     own include list.
@@ -84,6 +88,10 @@ class wordfreq_dict(distractor_dict):
                 self.words.append(distractor(word, math.log(freqs[word] * 10 ** 9)))
         self.frequency = {word.text: word.freq for word in self.words}
         self.rng = random.Random(params.get("seed", 0))  # for candidate_order "random"
+        if params.get("check_often_capitalized", False):
+            self.often_capitalized = set(read_word_list(OFTEN_CAPITALIZED))
+        else:
+            self.often_capitalized = set()
 
     def allowed(self, word):
         """Whether a word may be used as a distractor."""

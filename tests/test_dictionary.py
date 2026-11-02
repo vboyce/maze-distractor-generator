@@ -30,3 +30,17 @@ def test_avoiding_names_and_abbreviations_leaves_out_listed_words(tmp_path):
 def test_names_and_abbreviations_stay_when_not_avoided(tmp_path):
     assert dictionary_words(tmp_path, ["adam", "co", "sings"], avoid_names_and_abbreviations=False) == {
         "adam", "co", "sings"}
+
+
+def test_the_often_capitalized_list_is_loaded_when_checked(tmp_path):
+    include = tmp_path / "words.txt"
+    include.write_text("angel\n")
+    d = wordfreq_English_dict({"include_words": str(include), "exclude_words": None, "check_often_capitalized": True})
+    assert "angel" in d.often_capitalized
+
+
+def test_the_often_capitalized_list_is_empty_when_not_checked(tmp_path):
+    include = tmp_path / "words.txt"
+    include.write_text("angel\n")
+    d = wordfreq_English_dict({"include_words": str(include), "exclude_words": None, "check_often_capitalized": False})
+    assert d.often_capitalized == set()
