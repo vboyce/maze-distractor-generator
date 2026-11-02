@@ -39,3 +39,27 @@ def test_labels_of_the_wrong_length_raise(tmp_path):
 def test_missing_sentence_column_raises(tmp_path):
     with pytest.raises(ValueError, match="sentence"):
         read_input(write(tmp_path, "type,item_num,text\na,1,The cat sat.\n"))
+
+
+def test_a_row_missing_a_cell_is_an_error_naming_its_line(tmp_path):
+    with pytest.raises(ValueError, match="line 3"):
+        read_input(write(tmp_path, "type,item_num,sentence\na,1,The cat sat.\nb,2\n"))
+
+
+def test_an_empty_sentence_is_an_error(tmp_path):
+    with pytest.raises(ValueError, match="line 2.*sentence"):
+        read_input(write(tmp_path, "type,item_num,sentence\na,1,\n"))
+
+
+def test_an_empty_item_number_is_an_error(tmp_path):
+    with pytest.raises(ValueError, match="line 2.*item"):
+        read_input(write(tmp_path, "type,item_num,sentence\na,,The cat sat.\n"))
+
+
+def test_blank_lines_are_skipped(tmp_path):
+    sents = read_input(write(tmp_path, "type,item_num,sentence\na,1,The cat sat.\n\nb,2,A dog ran.\n\n"))
+    assert sorted(sents) == ["1", "2"]
+
+
+def test_an_empty_type_is_allowed(tmp_path):
+    assert read_input(write(tmp_path, "type,item_num,sentence\n,1,The cat sat.\n"))["1"].sentences[0].tag == ""

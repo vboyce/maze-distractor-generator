@@ -73,3 +73,18 @@ passage,3,2,Word two,three,run,,
         assert "3" in locked
         assert locked["3"]["1"] == "dog"
         assert locked["3"]["2"] == "run"
+
+
+def test_a_review_file_without_a_rejected_column_is_an_error(tmp_path):
+    """It is probably not a review file, so nothing would be regenerated."""
+    f = tmp_path / "review.csv"
+    f.write_text("type,item_num,label,prefix,real_word,distractor\npassage,1,1,The,cat,dog\n")
+    with pytest.raises(ValueError, match="rejected"):
+        read_rejection_file(str(f))
+
+
+def test_a_review_file_missing_another_column_is_an_error(tmp_path):
+    f = tmp_path / "review.csv"
+    f.write_text("type,item_num,label,real_word,distractor,rejected\npassage,1,1,cat,dog,\n")
+    with pytest.raises(ValueError, match="prefix"):
+        read_rejection_file(str(f))

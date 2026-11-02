@@ -108,24 +108,40 @@ def save_longform(outfile, all_sentences):
                     })
 
 
+# A review file without these can't say which positions to regenerate or
+# where their new distractors go; without "rejected" it would silently
+# regenerate nothing.
+REVIEW_REQUIRED_COLUMNS = ["item_num", "label", "prefix", "distractor", "rejected"]
+
+
+def read_review_rows(review_path):
+    """Read a longform review CSV. Returns (fieldnames, rows); raises if a
+    required column is missing."""
+    with open(review_path, newline="") as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames or []
+        rows = list(reader)
+    missing = [column for column in REVIEW_REQUIRED_COLUMNS if column not in fieldnames]
+    if missing:
+        raise ValueError(f"{review_path} is missing the column(s) {missing}; "
+                         f"is it a review file written by --longform?")
+    return fieldnames, rows
+
+
 def updated_longform_rows(original_longform_path, all_sentences):
     """Merge newly generated distractors into the rows of a longform review file.
 
     A label is regenerated for an item if any of its rows is marked rejected, so
     every row with that (item, label) gets its new distractor (with its own
     sentence's punctuation), its options, and a cleared 'rejected' flag. Other
-    rows are unchanged. The 'options' and 'rejected' columns are added if missing.
+    rows are unchanged. The 'options' column is added if missing.
 
     all_sentences should contain only the sentence sets that were regenerated.
 
     Returns (fieldnames, rows).
     """
-    with open(original_longform_path, newline="") as f:
-        reader = csv.DictReader(f)
-        orig_fieldnames = reader.fieldnames or []
-        orig_rows = list(reader)
-
-    rejected_keys = {(row["item_num"], row["label"]) for row in orig_rows if row.get("rejected", "").strip()}
+    orig_fieldnames, orig_rows = read_review_rows(original_longform_path)
+    rejected_keys = {(row["item_num"], row["label"]) for row in orig_rows if row["rejected"].strip()}
 
     # (item_num, label, prefix) identifies one word position in one sentence.
     new_data = {}
@@ -141,12 +157,7 @@ def updated_longform_rows(original_longform_path, all_sentences):
 
     out_fieldnames = list(orig_fieldnames)
     if "options" not in out_fieldnames:
-        if "rejected" in out_fieldnames:
-            out_fieldnames.insert(out_fieldnames.index("rejected"), "options")
-        else:
-            out_fieldnames.append("options")
-    if "rejected" not in out_fieldnames:
-        out_fieldnames.append("rejected")
+        out_fieldnames.insert(out_fieldnames.index("rejected"), "options")
 
     rows = []
     for row in orig_rows:

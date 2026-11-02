@@ -31,39 +31,32 @@ def run_benchmark(models=MODELS, infile=INFILE, parameters=PARAMS, outformat=OUT
         logging.info("=== Benchmarking %s (backend=%s) ===", model_name, backend_name)
 
         t0 = time.perf_counter()
-        try:
-            run_stuff(
-                infile=infile,
-                outfile=outfile,
-                parameters=parameters,
-                outformat=outformat,
-                model_override=model_name,
-                backend_override=backend_name,
-            )
-            elapsed = time.perf_counter() - t0
-            status = "ok"
-            logging.info("  %s finished in %.2fs", model_name, elapsed)
-        except Exception as e:
-            elapsed = time.perf_counter() - t0
-            status = f"error: {e}"
-            logging.error("  %s failed after %.2fs: %s", model_name, elapsed, e)
+        run_stuff(
+            infile=infile,
+            outfile=outfile,
+            parameters=parameters,
+            outformat=outformat,
+            model_override=model_name,
+            backend_override=backend_name,
+        )
+        elapsed = time.perf_counter() - t0
+        logging.info("  %s finished in %.2fs", model_name, elapsed)
 
         results.append({
             "model": model_name,
             "backend": backend_name,
             "elapsed_s": round(elapsed, 2),
-            "status": status,
         })
 
     print("\n" + "=" * 60)
-    print(f"{'Model':<35} {'Backend':<20} {'Time (s)':>10}  Status")
+    print(f"{'Model':<35} {'Backend':<20} {'Time (s)':>10}")
     print("-" * 60)
     for r in results:
-        print(f"{r['model']:<35} {r['backend']:<20} {r['elapsed_s']:>10.2f}  {r['status']}")
+        print(f"{r['model']:<35} {r['backend']:<20} {r['elapsed_s']:>10.2f}")
     print("=" * 60)
 
     with open(results_file, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["model", "backend", "elapsed_s", "status"])
+        writer = csv.DictWriter(f, fieldnames=["model", "backend", "elapsed_s"])
         writer.writeheader()
         writer.writerows(results)
     logging.info("Results saved to %s", results_file)

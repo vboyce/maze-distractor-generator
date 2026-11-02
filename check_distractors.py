@@ -116,9 +116,17 @@ def benchmark_grammaticality(
     if parent:
         os.makedirs(parent, exist_ok=True)
 
-    with open(infile, "r", newline="") as fin, \
-         open(outfile, "w", newline="") as fout:
-        reader = csv.DictReader(fin)
+    with open(infile, "r", newline="") as fin:
+        rows = list(csv.DictReader(fin))
+    # Checked before any API call, so a bad file costs nothing.
+    for row in rows:
+        n_words = len(row["sentence"].split())
+        n_distractors = len(row["distractors"].split())
+        if n_words != n_distractors:
+            raise ValueError(f"{infile}: item {row['item_num']} has {n_words} words "
+                             f"but {n_distractors} distractors")
+
+    with open(outfile, "w", newline="") as fout:
         writer = csv.writer(fout)
         writer.writerow([
             "type", "item_num", "sentence", "word_position",
@@ -126,15 +134,14 @@ def benchmark_grammaticality(
             "is_target_grammatical", "is_distractor_grammatical",
         ])
 
-        for row in reader:
+        for row in rows:
             sentence = row["sentence"]
-            distractors = row["distractors"]
             target_words = sentence.split()
-            distractor_words = distractors.split()
+            distractor_words = row["distractors"].split()
             for i in range(1, len(target_words)):
                 prefix = " ".join(target_words[:i])
                 target = target_words[i]
-                distractor = distractor_words[i] if i < len(distractor_words) else ""
+                distractor = distractor_words[i]
 
                 logging.info(
                     "item %s pos %d: target=%s distractor=%s",
@@ -144,12 +151,10 @@ def benchmark_grammaticality(
                 target_gram = is_grammatical_continuation(
                     prefix, target, model=model, api_base=api_base,
                 )
-                distractor_gram = False
-                if distractor:
-                    distractor_gram = is_grammatical_continuation(
-                        prefix, distractor, model=model, api_base=api_base,
-                    )
-                
+                distractor_gram = is_grammatical_continuation(
+                    prefix, distractor, model=model, api_base=api_base,
+                )
+
                 writer.writerow([
                     row["type"], row["item_num"], sentence, i,
                     target, distractor,

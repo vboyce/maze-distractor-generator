@@ -243,6 +243,9 @@ class MaskedLMBackend(_TransformersBase):
         self.model = self._load_model(AutoModelForMaskedLM, model_name, revision)
         if self.tokenizer.mask_token is None:
             raise ValueError(f"Tokenizer for {model_name} does not have a mask token")
+        # RoBERTa's position table has 2 rows it can't use, which only its
+        # tokenizer's limit reflects; tokenizers with no limit report a huge one.
+        self.max_positions = min(self.model.config.max_position_embeddings, self.tokenizer.model_max_length)
 
     def _build_masked_input(self, prefix_tokens, num_masks):
         """Build [CLS] prefix [MASK]*num_masks [SEP] tensor."""
@@ -270,6 +273,9 @@ class MaskedLMBackend(_TransformersBase):
             )
 
         input_ids, mask_start = self._build_masked_input(prefix_tokens, n_word_tokens)
+        if input_ids.shape[1] > self.max_positions:
+            raise ValueError(f"{prefix!r} + {word!r} is {input_ids.shape[1]} tokens with [CLS] and [SEP], "
+                             f"longer than the model reads ({self.max_positions})")
         log_prob_sum = 0.0
         with torch.no_grad():
             for i, token_id in enumerate(word_tokens[0]):

@@ -30,6 +30,16 @@ ALLOWED_VALUES = {
     "check_shown_case": (True, False),
 }
 
+# Numeric keys: (allowed types, smallest allowed value or None). bool is
+# excluded separately, since True is an int in Python.
+NUMBER_RULES = {
+    "num_to_test": ((int,), 1),
+    "max_repeat": ((int,), 0),
+    "min_delta": ((int, float), 0),
+    "min_abs": ((int, float), 0),
+    "seed": ((int,), None),
+}
+
 # Heuristics that use English word lists. Each defaults to on when language is
 # "en" and off otherwise; turning one on for another language is an error.
 ENGLISH_ONLY_KEYS = ("avoid_names_and_abbreviations", "check_often_capitalized", "break_noun_phrases")
@@ -79,7 +89,8 @@ def set_params(source=None, overrides=None):
         dict with all parameters filled in (user values override defaults).
 
     Raises:
-        ValueError: if a required key is missing or a key is unknown.
+        ValueError: if a required key is missing, a key is unknown, or a
+            value is of the wrong type or out of range.
     """
     if source is None:
         user_params = {}
@@ -124,4 +135,14 @@ def set_params(source=None, overrides=None):
     for key, allowed in ALLOWED_VALUES.items():
         if params[key] not in allowed:
             raise ValueError(f"{key} must be one of {allowed}, not {params[key]!r}")
+    for key, (types, minimum) in NUMBER_RULES.items():
+        check_number(key, params[key], types, minimum)
     return params
+
+
+def check_number(key, value, types, minimum):
+    if isinstance(value, bool) or not isinstance(value, types):
+        kind = "a whole number" if types == (int,) else "a number"
+        raise ValueError(f"{key} must be {kind}, not {value!r}")
+    if minimum is not None and value < minimum:
+        raise ValueError(f"{key} must be at least {minimum}, not {value!r}")

@@ -67,6 +67,38 @@ had back, except where noted.
 - **Models are loaded as float32**, and a sentence longer than the model can
   read is an error. From Amani Maina-Kilaas's generator.
 
+### Fixed: wrong output, or errors that didn't say what was wrong
+
+- A position kept as `NO-DISTRACTOR` through review is kept as the marker.
+  Before, it was lowercased, shown in the real word's case
+  ("No-distractor") and counted as a used distractor.
+- A model whose config names no causal or masked LM architecture is an error
+  that says to set `backend`. Before, it was loaded as causal with a
+  warning, so a model without an LM head would get a random one.
+- Parameter files are split at the first colon, so a value may contain one
+  (`model: "ollama/llama3:8b"`). Before, `num_to_test: 100: 5` was read as
+  100. A line without a colon, or a value that is not a Python literal, is
+  an error naming the line; blank lines are skipped (they used to crash).
+- `num_to_test` must be a whole number of at least 1, `max_repeat` a whole
+  number of at least 0, `min_delta` and `min_abs` numbers of at least 0, and
+  `seed` a whole number.
+- The `litellm` backend raises on a word token with no log-probability.
+  Before, it skipped the token, understating surprisal.
+- An input row that is short a cell, or has an empty item number or
+  sentence, is an error naming the line; blank rows are skipped. Before, a
+  missing cell was read as empty, and a blank row crashed with an
+  unexplained `IndexError`.
+- A review file (`--rejection-file`) without the `item_num`, `label`,
+  `prefix`, `distractor` and `rejected` columns is an error. Before, a file
+  with no `rejected` column was read as "nothing rejected".
+- The masked-LM backend checks that a sentence fits the model, as the causal
+  backend does; before, a too-long sentence failed with an indexing error.
+- `check_distractors.py` stops, before any API call, at a row with a
+  different number of distractors than words. Before, a missing distractor
+  was recorded as judged ungrammatical.
+- `benchmark.py` stops at a model that fails. Before, it logged the error
+  and went on to the next model.
+
 ### New
 
 - **Faster scoring** on causal models: candidates are scored in batches.

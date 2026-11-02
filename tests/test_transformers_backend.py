@@ -149,3 +149,32 @@ def test_a_litellm_model_has_no_commit(monkeypatch):
     monkeypatch.setitem(sys.modules, "litellm", types.ModuleType("litellm"))
     backend = load_surprisal_model("openai/some-model", backend="litellm", prepend_start_token=False)
     assert backend.model_commit is None
+
+
+class TestMaskedLMLength:
+    """Input is [CLS] prefix [MASK]... [SEP], so it is 2 tokens longer than
+    prefix + word."""
+
+    def test_text_that_fits_is_scored(self, tmp_path):
+        from backends.transformers_backend import MaskedLMBackend
+        from tests.tiny_lm import save_tiny_masked_lm
+        backend = MaskedLMBackend(save_tiny_masked_lm(tmp_path))
+        prefix = " ".join(["cat"] * (MAX_POSITIONS - 3))
+        assert backend.get_surprisal(prefix, "sat.") > 0
+
+    def test_text_longer_than_the_model_reads_raises(self, tmp_path):
+        from backends.transformers_backend import MaskedLMBackend
+        from tests.tiny_lm import save_tiny_masked_lm
+        backend = MaskedLMBackend(save_tiny_masked_lm(tmp_path))
+        prefix = " ".join(["cat"] * (MAX_POSITIONS - 2))
+        with pytest.raises(ValueError, match="longer than the model reads"):
+            backend.get_surprisal(prefix, "sat.")
+
+    def test_a_tokenizer_limit_below_the_config_limit_is_used(self, tmp_path):
+        """RoBERTa's position table has 2 more rows than it can use."""
+        from backends.transformers_backend import MaskedLMBackend
+        from tests.tiny_lm import save_tiny_masked_lm
+        backend = MaskedLMBackend(save_tiny_masked_lm(tmp_path, tokenizer_max_length=MAX_POSITIONS - 2))
+        prefix = " ".join(["cat"] * (MAX_POSITIONS - 4))
+        with pytest.raises(ValueError, match=f"longer than the model reads \\({MAX_POSITIONS - 2}\\)"):
+            backend.get_surprisal(prefix, "sat.")

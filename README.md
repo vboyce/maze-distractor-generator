@@ -48,6 +48,8 @@ A CSV with a header row and these columns. Header names are matched case-insensi
 | `sentence` | The sentence. Words are split on spaces; punctuation stays attached to its word. |
 | `labels` (optional) | One label per word. Within an item, words with the same label get the same distractor. Without labels, words are matched by position. |
 
+Blank rows are skipped. A row that is short a cell, has an empty `item_num` or `sentence`, or has a different number of labels than words is an error naming its line.
+
 Example with labels:
 
 ```
@@ -82,7 +84,7 @@ Surprisal is calculated by tokenizing `prefix + " " + word`, comparing with the 
 
 ## Parameters
 
-Parameters come from a file passed with `-p` (`key: value` lines, split at the first colon, so a value may contain colons; values are Python literals, so strings need quotes; a line starting with `#` is a comment, and blank lines are skipped). `model` is required (there is no default model); keys you leave out get the defaults below. `--model` on the command line counts as giving it. An unknown key is an error, so a typo or an out-of-date key can't be silently ignored. See `params.txt` for an example.
+Parameters come from a file passed with `-p` (`key: value` lines, split at the first colon, so a value may contain colons; values are Python literals, so strings need quotes; a line starting with `#` is a comment, and blank lines are skipped). `model` is required (there is no default model); keys you leave out get the defaults below. `--model` on the command line counts as giving it. An unknown key is an error, so a typo or an out-of-date key can't be silently ignored. So is a number of the wrong type or out of range: `num_to_test` must be a whole number of at least 1, `max_repeat` a whole number of at least 0, `min_delta` and `min_abs` numbers of at least 0, and `seed` a whole number. See `params.txt` for an example.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -139,7 +141,7 @@ Automatic distractors are sometimes plausible continuations, or unsuitable for y
    ```sh
    .venv/bin/python distract.py input.csv final.js --format json --rejection-file review_2.csv --longform review_3.csv -p params.txt
    ```
-   If nothing is marked rejected, nothing is regenerated, and this just converts the review file.
+   If nothing is marked rejected, nothing is regenerated, and this just converts the review file. A file without the `item_num`, `label`, `prefix`, `distractor` and `rejected` columns is an error, since it is probably not a review file.
 
 Other options for quality control:
 - **Experimental, in progress:** `check_distractors.py` asks an LLM whether each target and distractor is a grammatical continuation. It isn't reliable yet. In one test run (9 Natural Stories items, Claude Sonnet), 8% of the *real* words were judged ungrammatical, so don't use it to reject distractors automatically. `check-check-distractors.R` is exploratory code for looking at its output.

@@ -72,3 +72,17 @@ def test_non_anthropic_model_does_not_need_the_key(monkeypatch, tmp_path):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
     checker.require_api_key("ollama/llama3", tmp_path / "missing.env")
+
+
+def test_a_row_with_too_few_distractors_fails_before_any_api_call(monkeypatch, tmp_path):
+    """A missing distractor used to be recorded as judged ungrammatical. The
+    bad row is second, so the check must come before the first row's calls."""
+    checker = import_checker_with_fake_litellm(monkeypatch)
+    infile = tmp_path / "in.csv"
+    infile.write_text("type,item_num,sentence,distractors,labels\n"
+                      "a,1,The cat sat.,x-x-x dog ran.,0 1 2\n"
+                      "a,2,The dog ran away.,x-x-x cat sat.,0 1 2 3\n")
+
+    with pytest.raises(ValueError, match="item 2 has 4 words but 3 distractors"):
+        checker.benchmark_grammaticality(str(infile), str(tmp_path / "out.csv"),
+                                         model="ollama/llama3")

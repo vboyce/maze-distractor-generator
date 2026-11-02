@@ -194,3 +194,36 @@ def test_blank_lines_are_ignored(tmp_path):
     f = tmp_path / "params.txt"
     f.write_text('model: "gpt2"\n\n   \nseed: 3\n')
     assert set_params(str(f))["seed"] == 3
+
+
+# --- Numeric parameters: type and range ---
+
+@pytest.mark.parametrize("key, bad_value", [
+    ("num_to_test", 0),
+    ("num_to_test", 2.5),
+    ("num_to_test", "100"),
+    ("max_repeat", -1),
+    ("max_repeat", 1.5),
+    ("min_delta", -1),
+    ("min_delta", "10"),
+    ("min_abs", -0.5),
+    ("min_abs", True),
+    ("seed", 1.5),
+    ("seed", None),
+])
+def test_out_of_range_numbers_raise(key, bad_value):
+    """A negative max_repeat, for example, would ban every word after one use."""
+    with pytest.raises(ValueError, match=key):
+        set_params({"model": "gpt2", key: bad_value})
+
+
+@pytest.mark.parametrize("key, value", [
+    ("num_to_test", 1),
+    ("max_repeat", 0),
+    ("min_delta", 0),
+    ("min_delta", 2.5),
+    ("min_abs", 0),
+    ("seed", -3),
+])
+def test_in_range_numbers_are_accepted(key, value):
+    assert set_params({"model": "gpt2", key: value})[key] == value

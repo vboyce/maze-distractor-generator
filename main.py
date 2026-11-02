@@ -7,7 +7,7 @@ from limit_repeats import Repeatcounter
 from get_surprisal import get_surprisal, load_surprisal_model
 from input import read_input
 from output import (save_delim, save_json, save_distractor_summary, save_longform,
-                    updated_longform_rows, write_longform_rows, assign_distractors_from_longform,
+                    read_review_rows, updated_longform_rows, write_longform_rows, assign_distractors_from_longform,
                     report_rows, save_report)
 from utils import strip_punct
 from sentence_set import is_no_distractor
@@ -29,10 +29,8 @@ def read_rejection_file(filepath):
         locked_by_item: dict mapping item_num (str) -> {label (str): distractor (str, with punctuation)}
         rejected_items: set of item_num strings that have at least one rejected label.
     """
-    with open(filepath, newline="") as f:
-        rows = list(csv.DictReader(f))
-
-    rejected_labels = {(row["item_num"], row["label"]) for row in rows if row.get("rejected", "").strip()}
+    _, rows = read_review_rows(filepath)
+    rejected_labels = {(row["item_num"], row["label"]) for row in rows if row["rejected"].strip()}
     rejected_items = {item_num for item_num, _ in rejected_labels}
 
     locked_by_item = {}
