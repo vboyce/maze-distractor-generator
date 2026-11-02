@@ -10,7 +10,8 @@ from set_params import set_params, DEFAULTS
 def test_keys_left_out_get_the_defaults():
     assert set_params({"model": "gpt2"}) == {**DEFAULTS, "model": "gpt2",
                                              "avoid_names_and_abbreviations": True,
-                                             "check_often_capitalized": True}
+                                             "check_often_capitalized": True,
+                                             "break_noun_phrases": True}
 
 
 def test_dict_values_override_defaults():
@@ -140,6 +141,19 @@ def test_often_capitalized_words_are_not_checked_by_default_in_other_languages()
 def test_checking_often_capitalized_words_outside_english_raises():
     with pytest.raises(ValueError, match="check_often_capitalized"):
         set_params({"model": "gpt2", "language": "fr", "check_often_capitalized": True})
+
+
+def test_noun_phrases_are_broken_by_default_in_english():
+    assert set_params({"model": "gpt2"})["break_noun_phrases"] is True
+
+
+def test_noun_phrases_are_not_broken_by_default_in_other_languages():
+    assert set_params({"model": "gpt2", "language": "fr"})["break_noun_phrases"] is False
+
+
+def test_breaking_noun_phrases_outside_english_raises():
+    with pytest.raises(ValueError, match="break_noun_phrases"):
+        set_params({"model": "gpt2", "language": "fr", "break_noun_phrases": True})
 
 
 # --- Capitalization as shown: on by default in every language ---

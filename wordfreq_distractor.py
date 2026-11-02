@@ -30,6 +30,7 @@ EXCLUDED_WORDS = os.path.join(WORD_LISTS, "exclude.txt")
 NAMES_AND_ABBREVIATIONS = [os.path.join(WORD_LISTS, "first_names.txt"),
                            os.path.join(WORD_LISTS, "abbreviations.txt")]
 OFTEN_CAPITALIZED = os.path.join(WORD_LISTS, "often_capitalized.txt")
+NOUN_PHRASE_BREAKERS = os.path.join(WORD_LISTS, "noun_phrase_breakers.txt")
 
 
 def hash_order(order_key, word):
@@ -59,6 +60,10 @@ class wordfreq_dict(distractor_dict):
     holds the words readers often see capitalized (names, places, titles;
     word_lists/often_capitalized.txt), which must meet their surprisal target
     capitalized too (see sentence_set.forms_to_score); otherwise it is empty.
+    With params["break_noun_phrases"], self.noun_phrase_breakers holds the
+    words that can't continue a noun phrase (word_lists/noun_phrase_breakers.txt),
+    the only candidates after a determiner (see sentence_set.DETERMINERS);
+    otherwise it is empty.
 
     English defaults to word_lists/curated_word_list.txt; other languages must name their
     own include list.
@@ -96,6 +101,10 @@ class wordfreq_dict(distractor_dict):
             self.often_capitalized = set(read_word_list(OFTEN_CAPITALIZED))
         else:
             self.often_capitalized = set()
+        if params.get("break_noun_phrases", False):
+            self.noun_phrase_breakers = set(read_word_list(NOUN_PHRASE_BREAKERS))
+        else:
+            self.noun_phrase_breakers = set()
 
     def allowed(self, word):
         """Whether a word may be used as a distractor."""
@@ -119,12 +128,13 @@ class wordfreq_dict(distractor_dict):
         return matches
 
     def get_potential_distractors(self, min_length, max_length, min_freq, max_freq, params,
-                                  target_words=None, order_key=None, avoid=()):
+                                  target_words=None, order_key=None, avoid=(), only=None):
         """Up to params["num_to_test"] candidates: the words within the length
         and frequency bounds, and if there are too few of those, words in
         widening frequency bands beyond them (lower and higher), one band at a
-        time until there are enough. Words in avoid are left out before
-        counting, so they never take the place of a word that could be used.
+        time until there are enough. Words in avoid, and if only is given,
+        words not in only, are left out before counting, so they never take
+        the place of a word that could be used.
 
         Their order is params["candidate_order"]:
             "random": the words within the bounds, shuffled, then each band,
@@ -142,7 +152,7 @@ class wordfreq_dict(distractor_dict):
         avoid = set(avoid)
 
         def arrange(words):
-            words = [word for word in words if word not in avoid]
+            words = [word for word in words if word not in avoid and (only is None or word in only)]
             if candidate_order == "random":
                 self.rng.shuffle(words)
             return words

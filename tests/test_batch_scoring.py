@@ -51,7 +51,7 @@ def run_item(backend, fallback_ranking, num_options, sentences=LOWERCASE_ITEM, o
     # avoid_item_words is off.
     params = {"min_abs": 3.4, "min_delta": 0, "num_to_test": len(POOL), "fallback_ranking": fallback_ranking,
               "avoid_item_words": False, "check_shown_case": True,
-              "check_often_capitalized": bool(often_capitalized)}
+              "check_often_capitalized": bool(often_capitalized), "break_noun_phrases": False}
     dictionary = mock_dict(POOL)
     dictionary.often_capitalized = set(often_capitalized)
     ss.do_distractors(backend, dictionary, threshold_func, params, Repeatcounter(0), num_options=num_options)

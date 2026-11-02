@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from main import run_stuff
 from wordfreq_distractor import wordfreq_dict
+from utils import strip_punct
 
 REPO = os.path.dirname(os.path.dirname(__file__))
 
@@ -339,6 +340,55 @@ def test_an_often_capitalized_word_must_meet_the_target_capitalized(tmp_path):
     assert run_with_words(tmp_path, "Birds sing.", ["angel", "actor"]) == "x-x-x actor."
 
 
+# "cat", "cup" and "sky" are nouns in dog's length and frequency window; "got",
+# on noun_phrase_breakers.txt, is more frequent, so it comes in only when the
+# search widens.
+NOUNS_AND_A_BREAKER = ["cat", "cup", "sky", "got"]
+
+
+def distractor_for_dog(tmp_path, sentences, **params):
+    """The distractor at "dog" in the first of sentences (one item), with
+    every non-real word meeting the target."""
+    words = sentences[0].split()
+    dog = [strip_punct(word).lower() for word in words].index("dog")
+    infile = tmp_path / "in.csv"
+    infile.write_text("type,item_num,sentence\n" + "".join(f"x,1,{s}\n" for s in sentences))
+    word_file = tmp_path / "words.txt"
+    word_file.write_text("\n".join(NOUNS_AND_A_BREAKER) + "\n")
+    params = {**PARAMS, "include_words": str(word_file), "candidate_order": "random", **params}
+    with patch("main.load_surprisal_model", return_value=FakeBackend()):
+        run_stuff(str(infile), str(tmp_path / "out.csv"), parameters=params)
+    return strip_punct(read_csv(tmp_path / "out.csv")[0]["distractors"].split()[dog]).lower()
+
+
+def test_after_a_determiner_only_noun_phrase_breakers_are_tried(tmp_path):
+    """"The cat" could go on as a sentence however surprising "cat" is."""
+    assert distractor_for_dog(tmp_path, ["The dog hid."]) == "got"
+
+
+def test_after_another_word_any_candidate_is_tried(tmp_path):
+    """Words in the window are tried first; "got" only after them."""
+    assert distractor_for_dog(tmp_path, ["Big dog hid."]) in {"cat", "cup", "sky"}
+
+
+def test_noun_phrase_breakers_are_not_required_when_turned_off(tmp_path):
+    assert distractor_for_dog(tmp_path, ["The dog hid."], break_noun_phrases=False) in {"cat", "cup", "sky"}
+
+
+def test_a_determiner_ending_a_sentence_does_not_restrict_the_next_word(tmp_path):
+    """"his" ends the sentence: it is a pronoun there, and "Dog" starts a
+    new noun phrase."""
+    assert distractor_for_dog(tmp_path, ["It was his. Dog hid."]) in {"cat", "cup", "sky"}
+
+
+def test_a_determiner_after_opening_punctuation_still_counts(tmp_path):
+    assert distractor_for_dog(tmp_path, ["(The dog hid.)"]) == "got"
+
+
+def test_a_label_after_a_determiner_in_any_sentence_gets_a_noun_phrase_breaker(tmp_path):
+    assert distractor_for_dog(tmp_path, ["Big dog hid.", "The dog hid."]) == "got"
+
+
 class DictionaryWithoutOftenCapitalized(wordfreq_dict):
     """A dictionary class written before check_often_capitalized existed."""
 
@@ -360,6 +410,50 @@ def test_a_dictionary_without_often_capitalized_raises_before_loading_the_model(
 
 def test_a_dictionary_without_often_capitalized_works_when_not_checked(infile, tmp_path):
     params = {**PARAMS, **OLD_DICTIONARY, "check_often_capitalized": False}
+    with patch("main.load_surprisal_model", return_value=FakeBackend()):
+        run_stuff(infile, str(tmp_path / "out.csv"), parameters=params)
+    assert len(read_csv(tmp_path / "out.csv")) == 3
+
+
+class DictionaryWithoutNounPhraseBreakers(wordfreq_dict):
+    """A dictionary class written before break_noun_phrases existed."""
+
+    def __init__(self, params):
+        super().__init__(params)
+        del self.noun_phrase_breakers
+
+
+DICTIONARY_WITHOUT_BREAKERS = {"dictionary_loc": "tests.test_end_to_end",
+                               "dictionary_class": "DictionaryWithoutNounPhraseBreakers"}
+
+
+def test_a_dictionary_without_noun_phrase_breakers_raises_before_loading_the_model(infile, tmp_path):
+    params = {**PARAMS, **DICTIONARY_WITHOUT_BREAKERS}
+    with patch("main.load_surprisal_model") as load:
+        with pytest.raises(ValueError, match="break_noun_phrases"):
+            run_stuff(infile, str(tmp_path / "out.csv"), parameters=params)
+    load.assert_not_called()
+
+
+def test_a_dictionary_without_noun_phrase_breakers_works_when_not_used(infile, tmp_path):
+    params = {**PARAMS, **DICTIONARY_WITHOUT_BREAKERS, "break_noun_phrases": False}
+    with patch("main.load_surprisal_model", return_value=FakeBackend()):
+        run_stuff(infile, str(tmp_path / "out.csv"), parameters=params)
+    assert len(read_csv(tmp_path / "out.csv")) == 3
+
+
+class DictionaryWithOldSignature(DictionaryWithoutNounPhraseBreakers):
+    """get_potential_distractors as written before break_noun_phrases existed."""
+
+    def get_potential_distractors(self, min_length, max_length, min_freq, max_freq, params,
+                                  target_words=None, order_key=None, avoid=()):
+        return super().get_potential_distractors(min_length, max_length, min_freq, max_freq, params,
+                                                 target_words=target_words, order_key=order_key, avoid=avoid)
+
+
+def test_a_dictionary_with_the_old_signature_works_when_noun_phrases_are_not_broken(infile, tmp_path):
+    params = {**PARAMS, "dictionary_loc": "tests.test_end_to_end", "dictionary_class": "DictionaryWithOldSignature",
+              "break_noun_phrases": False}
     with patch("main.load_surprisal_model", return_value=FakeBackend()):
         run_stuff(infile, str(tmp_path / "out.csv"), parameters=params)
     assert len(read_csv(tmp_path / "out.csv")) == 3

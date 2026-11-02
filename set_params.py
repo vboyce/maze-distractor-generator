@@ -33,7 +33,7 @@ ALLOWED_VALUES = {
 
 # Heuristics that use English word lists. Each defaults to on when language is
 # "en" and off otherwise; turning one on for another language is an error.
-ENGLISH_ONLY_KEYS = ("avoid_names_and_abbreviations", "check_often_capitalized")
+ENGLISH_ONLY_KEYS = ("avoid_names_and_abbreviations", "check_often_capitalized", "break_noun_phrases")
 
 # Keys with no default that must be given. There is no default model, so that
 # a run can't silently use a model nobody chose.

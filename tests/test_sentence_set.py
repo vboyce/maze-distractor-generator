@@ -9,7 +9,7 @@ from sentence_set import Label, Sentence, Sentence_Set, item_words, forms_to_sco
 from limit_repeats import Repeatcounter
 
 PARAMS = {"min_abs": 25, "min_delta": 10, "num_to_test": 100, "fallback_ranking": "gap",
-          "avoid_item_words": True, "check_shown_case": True, "check_often_capitalized": False}
+          "avoid_item_words": True, "check_shown_case": True, "check_often_capitalized": False, "break_noun_phrases": False}
 
 
 def make_label(word="cat", prefix="The", surprisal=8.0):

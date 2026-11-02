@@ -90,6 +90,11 @@ def run_stuff(infile, outfile, logfile=None, summaryfile=None, parameters="param
             f"check_often_capitalized is on, but dictionary_class {params['dictionary_class']} has no "
             "often_capitalized attribute (the set of words that must also meet the target capitalized). "
             "Give the class one, or set check_often_capitalized: False.")
+    if params["break_noun_phrases"] and not hasattr(d, "noun_phrase_breakers"):
+        raise ValueError(
+            f"break_noun_phrases is on, but dictionary_class {params['dictionary_class']} has no "
+            "noun_phrase_breakers attribute (the set of words that may follow a determiner). "
+            "Give the class one, or set break_noun_phrases: False.")
     backend = load_surprisal_model(params["model"], backend=params["backend"],
                                    prepend_start_token=params["prepend_start_token"],
                                    revision=params["revision"])

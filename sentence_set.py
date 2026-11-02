@@ -11,6 +11,20 @@ FALLBACK_RANKINGS = ("gap", "min_surprisal")
 NO_DISTRACTOR = "NO-DISTRACTOR"
 
 
+# Words that are always determiners, so a noun phrase is open after them;
+# "that", "this" and "her" are as often something else. From Amani
+# Maina-Kilaas's maze-distractor-generator (generation.py), GPL-3.
+DETERMINERS = frozenset(["the", "a", "an", "my", "your", "his", "its", "our", "their", "every"])
+
+
+def ends_in_determiner(prefix):
+    """Whether the last word of prefix is one of DETERMINERS, with no
+    punctuation after it: in "It was his." the noun phrase is over."""
+    last = prefix.split()[-1]
+    word = strip_punct(last)
+    return last.endswith(word) and word.lower() in DETERMINERS
+
+
 def item_words(words):
     """The lowercase letter runs of words, so "Cat's" gives "cat" and "s",
     and "well-known" gives "well" and "known"."""
@@ -147,7 +161,9 @@ class Label:
         the rest, ranked by params["fallback_ranking"] (see fallback_rank),
         ties in the order found. The search stops
         once n good candidates are found. Candidates on `banned` and the real
-        words themselves are skipped.
+        words themselves are skipped. With params["break_noun_phrases"], if
+        any prefix ends in one of DETERMINERS, only the dictionary's
+        noun_phrase_breakers are candidates.
 
         Sets self.distractor to the first result, or NO_DISTRACTOR (with a
         warning) if there was no candidate to try.
@@ -156,10 +172,17 @@ class Label:
             self.surprisal_targets.append(max(params["min_abs"], surprisal + params["min_delta"]))
         min_length, max_length, min_freq, max_freq = threshold_func(self.words, params)
         avoid = [strip_punct(word).lower() for word in self.words]
+        # After a determiner, a noun, adjective, participle or adverb could
+        # go on to make a sentence however surprising it is ("The alluded...").
+        # `only` is passed just then, so a dictionary class written before
+        # break_noun_phrases still works with it off.
+        restriction = {}
+        if params["break_noun_phrases"] and any(ends_in_determiner(prefix) for prefix in self.prefixes):
+            restriction = {"only": dictionary.noun_phrase_breakers}
         distractor_opts = dictionary.get_potential_distractors(min_length, max_length, min_freq, max_freq, params,
                                                                target_words=self.words,
                                                                order_key=f"{self.id}\0{self.lab}",
-                                                               avoid=list(banned) + avoid)
+                                                               avoid=list(banned) + avoid, **restriction)
 
         candidates = [dist for dist in distractor_opts if dist not in banned and dist not in avoid]
         # A score that meets its target may be a lower bound, which is all the
