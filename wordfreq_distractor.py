@@ -20,9 +20,13 @@ def check_language(language):
 
 CANDIDATE_ORDERS = ("closest", "random")
 
-# English word lists from Amani Maina-Kilaas's maze-distractor-generator,
-# GPL-3; see word_lists/README.md for how they were built.
+# Word lists that come with the generator, found relative to this file so that
+# a run started from any directory finds them. See word_lists/README.md.
 WORD_LISTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "word_lists")
+# The defaults for include_words (English only) and exclude_words.
+CURATED_WORDS = os.path.join(WORD_LISTS, "curated_word_list.txt")
+EXCLUDED_WORDS = os.path.join(WORD_LISTS, "exclude.txt")
+# English heuristics' lists, from Amani Maina-Kilaas's maze-distractor-generator (GPL-3).
 NAMES_AND_ABBREVIATIONS = [os.path.join(WORD_LISTS, "first_names.txt"),
                            os.path.join(WORD_LISTS, "abbreviations.txt")]
 OFTEN_CAPITALIZED = os.path.join(WORD_LISTS, "often_capitalized.txt")
@@ -56,7 +60,7 @@ class wordfreq_dict(distractor_dict):
     word_lists/often_capitalized.txt), which must meet their surprisal target
     capitalized too (see sentence_set.forms_to_score); otherwise it is empty.
 
-    English defaults to curated_word_list.txt; other languages must name their
+    English defaults to word_lists/curated_word_list.txt; other languages must name their
     own include list.
 
     Candidates are put in order by params["candidate_order"] (see
@@ -66,14 +70,14 @@ class wordfreq_dict(distractor_dict):
     def __init__(self, params={}):
         self.language = params.get("language", "en")
         check_language(self.language)
-        default_include = "curated_word_list.txt" if self.language == "en" else None
+        default_include = CURATED_WORDS if self.language == "en" else None
         include = params.get("include_words", default_include)
         if include is None:
             raise ValueError(
                 f"language '{self.language}' needs its own word list: set include_words "
                 "to a file of candidate distractor words, one per line"
             )
-        exclude = params.get("exclude_words", "exclude.txt")
+        exclude = params.get("exclude_words", EXCLUDED_WORDS)
 
         freqs = wordfreq.get_frequency_dict(self.language)
         exclusions = set(read_word_list(exclude)) if exclude is not None else set()

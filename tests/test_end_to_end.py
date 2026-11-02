@@ -36,8 +36,8 @@ PARAMS = {
     "min_delta": 10,
     "min_abs": 25,
     "num_to_test": 20,
-    "include_words": os.path.join(REPO, "curated_word_list.txt"),
-    "exclude_words": os.path.join(REPO, "exclude.txt"),
+    "include_words": os.path.join(REPO, "word_lists", "curated_word_list.txt"),
+    "exclude_words": os.path.join(REPO, "word_lists", "exclude.txt"),
     "max_repeat": 1,
 }
 
@@ -360,6 +360,16 @@ def test_a_dictionary_without_often_capitalized_raises_before_loading_the_model(
 
 def test_a_dictionary_without_often_capitalized_works_when_not_checked(infile, tmp_path):
     params = {**PARAMS, **OLD_DICTIONARY, "check_often_capitalized": False}
+    with patch("main.load_surprisal_model", return_value=FakeBackend()):
+        run_stuff(infile, str(tmp_path / "out.csv"), parameters=params)
+    assert len(read_csv(tmp_path / "out.csv")) == 3
+
+
+def test_the_default_word_lists_are_found_from_any_directory(infile, tmp_path, monkeypatch):
+    """include_words and exclude_words left out: the default lists come with
+    the generator, so a run started elsewhere still finds them."""
+    params = {key: value for key, value in PARAMS.items() if key not in ("include_words", "exclude_words")}
+    monkeypatch.chdir(tmp_path)
     with patch("main.load_surprisal_model", return_value=FakeBackend()):
         run_stuff(infile, str(tmp_path / "out.csv"), parameters=params)
     assert len(read_csv(tmp_path / "out.csv")) == 3

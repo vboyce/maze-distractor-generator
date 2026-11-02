@@ -55,8 +55,8 @@ def test_reads_params_file_and_skips_comments(tmp_path):
 
 
 def test_word_list_keys_are_accepted(tmp_path):
-    params = set_params({"model": "gpt2", "include_words": "curated_word_list.txt", "exclude_words": "exclude.txt"})
-    assert params["include_words"] == "curated_word_list.txt"
+    params = set_params({"model": "gpt2", "include_words": "my_words.txt", "exclude_words": "my_exclusions.txt"})
+    assert params["include_words"] == "my_words.txt"
 
 
 def test_unknown_key_raises():

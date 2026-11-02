@@ -1,4 +1,13 @@
-# Word lists for English-only heuristics
+# Word lists
+
+## Candidates and exclusions
+
+- `curated_word_list.txt`: the default `include_words` for English, the
+  candidate distractors (see "Word lists" in the main README for how it was
+  built; `scripts/curate_wordlist.py` was one step).
+- `exclude.txt`: the default `exclude_words`, words never used as distractors.
+
+## English-only heuristics
 
 These lists come from Amani Maina-Kilaas's version of this generator
 (<https://github.com/amanirmk/maze-distractor-generator>, commit `24e1596`,

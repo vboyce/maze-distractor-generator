@@ -2,7 +2,8 @@
 """Report the word-length distribution of a word list and drop words of
 MAX_LENGTH or more characters, writing the result to a new file.
 
-This was one step in building curated_word_list.txt (the default include list);
+This was one step in building word_lists/curated_word_list.txt (the default
+include list);
 most curation (removing offensive and sensitive words) was done by hand.
 
 Usage:

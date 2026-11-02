@@ -10,6 +10,6 @@ threshold_loc: "wordfreq_distractor"
 threshold_name: "get_thresholds"
 backend: "transformers"
 language: "en"
-exclude_words: "exclude.txt"
-include_words: "curated_word_list.txt"
+exclude_words: "word_lists/exclude.txt"
+include_words: "word_lists/curated_word_list.txt"
 max_repeat: 1

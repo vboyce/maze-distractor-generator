@@ -32,8 +32,8 @@ def real_word_surprisals(tmp_path, model_dir, **params):
     logfile = tmp_path / "log.csv"
     run_stuff(str(infile), str(tmp_path / "out.csv"), logfile=str(logfile),
               parameters={"model": model_dir, "num_to_test": 3, "max_repeat": 0,
-                          "include_words": os.path.join(REPO, "curated_word_list.txt"),
-                          "exclude_words": os.path.join(REPO, "exclude.txt"), **params})
+                          "include_words": os.path.join(REPO, "word_lists", "curated_word_list.txt"),
+                          "exclude_words": os.path.join(REPO, "word_lists", "exclude.txt"), **params})
     with open(logfile, newline="") as f:
         return {row["word"]: float(row["actual_surprisal"])
                 for row in csv.DictReader(f) if row["record_type"] == "real_word"}
