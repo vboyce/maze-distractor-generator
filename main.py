@@ -85,6 +85,11 @@ def run_stuff(infile, outfile, logfile=None, summaryfile=None, parameters="param
     dict_class = getattr(importlib.import_module(params["dictionary_loc"]),
                          params["dictionary_class"])
     d = dict_class(params)
+    if params["check_often_capitalized"] and not hasattr(d, "often_capitalized"):
+        raise ValueError(
+            f"check_often_capitalized is on, but dictionary_class {params['dictionary_class']} has no "
+            "often_capitalized attribute (the set of words that must also meet the target capitalized). "
+            "Give the class one, or set check_often_capitalized: False.")
     backend = load_surprisal_model(params["model"], backend=params["backend"],
                                    prepend_start_token=params["prepend_start_token"],
                                    revision=params["revision"])

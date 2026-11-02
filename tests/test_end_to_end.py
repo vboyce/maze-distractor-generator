@@ -10,6 +10,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from main import run_stuff
+from wordfreq_distractor import wordfreq_dict
 
 REPO = os.path.dirname(os.path.dirname(__file__))
 
@@ -251,6 +252,7 @@ import sys
 from unittest.mock import patch
 sys.path.insert(0, sys.argv[1])
 from main import run_stuff
+from wordfreq_distractor import wordfreq_dict
 from tests.test_end_to_end import FakeBackend, PARAMS
 with patch("main.load_surprisal_model", return_value=FakeBackend()):
     run_stuff(sys.argv[2], sys.argv[3], parameters={**PARAMS, "candidate_order": "random", "seed": 1})
@@ -335,3 +337,29 @@ def test_an_often_capitalized_word_must_meet_the_target_capitalized(tmp_path):
     """A reader may take "angel" for the name Angel, so it is scored
     capitalized too, though shown in lowercase."""
     assert run_with_words(tmp_path, "Birds sing.", ["angel", "actor"]) == "x-x-x actor."
+
+
+class DictionaryWithoutOftenCapitalized(wordfreq_dict):
+    """A dictionary class written before check_often_capitalized existed."""
+
+    def __init__(self, params):
+        super().__init__(params)
+        del self.often_capitalized
+
+
+OLD_DICTIONARY = {"dictionary_loc": "tests.test_end_to_end", "dictionary_class": "DictionaryWithoutOftenCapitalized"}
+
+
+def test_a_dictionary_without_often_capitalized_raises_before_loading_the_model(infile, tmp_path):
+    params = {**PARAMS, **OLD_DICTIONARY}
+    with patch("main.load_surprisal_model") as load:
+        with pytest.raises(ValueError, match="check_often_capitalized"):
+            run_stuff(infile, str(tmp_path / "out.csv"), parameters=params)
+    load.assert_not_called()
+
+
+def test_a_dictionary_without_often_capitalized_works_when_not_checked(infile, tmp_path):
+    params = {**PARAMS, **OLD_DICTIONARY, "check_often_capitalized": False}
+    with patch("main.load_surprisal_model", return_value=FakeBackend()):
+        run_stuff(infile, str(tmp_path / "out.csv"), parameters=params)
+    assert len(read_csv(tmp_path / "out.csv")) == 3

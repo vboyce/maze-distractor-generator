@@ -101,7 +101,7 @@ Parameters come from a file passed with `-p` (colon-separated `key: value` lines
 | `exclude_words` | `"exclude.txt"` | Words never used as distractors. |
 | `avoid_names_and_abbreviations` | `True` for English, `False` otherwise | Never use a word readers know only as a first name or an abbreviation (`word_lists/first_names.txt`, `word_lists/abbreviations.txt`; see `word_lists/README.md`). English only: `True` with another language is an error. |
 | `check_often_capitalized` | `True` for English, `False` otherwise | A word on `word_lists/often_capitalized.txt` must meet the target capitalized too, however it is shown (see `word_lists/README.md`). English only: `True` with another language is an error. |
-| `dictionary_loc`, `dictionary_class` | `"wordfreq_distractor"`, `"wordfreq_dict"` | Module and class that provide candidate words and frequencies. (`wordfreq_English_dict` still works, for English only.) |
+| `dictionary_loc`, `dictionary_class` | `"wordfreq_distractor"`, `"wordfreq_dict"` | Module and class that provide candidate words and frequencies. (`wordfreq_English_dict` still works, for English only.) With `check_often_capitalized`, the class must also have an `often_capitalized` attribute, the set of words that must meet the target capitalized; without it, the run stops with an error before the model loads. |
 | `threshold_loc`, `threshold_name` | `"wordfreq_distractor"`, `"get_thresholds"` | Module and function that turn the real words into length/frequency bounds. |
 
 `--model` and `--backend` on the command line override the file.
