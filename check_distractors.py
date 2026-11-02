@@ -8,9 +8,15 @@ import csv
 import json
 import logging
 import os
+from pathlib import Path
 from typing import Optional
 
+from dotenv import load_dotenv
 from pydantic import BaseModel
+
+# Where API keys are read from when they aren't already in the environment.
+# Gitignored; one line per key, e.g. ANTHROPIC_API_KEY=...
+DEFAULT_ENV_FILE = Path(__file__).resolve().parent / ".env"
 
 
 class GrammaticalityJudgment(BaseModel):
@@ -64,11 +70,31 @@ def is_grammatical_continuation(
     return GrammaticalityJudgment(**result).grammatical
 
 
+def require_api_key(model: str, env_file: Path) -> None:
+    """Make sure the API key that `model` needs is in the environment.
+
+    Loads `env_file` if it exists (without overriding keys already set), then
+    exits with an error if the key is still missing. Only Anthropic models are
+    checked; other providers are left to liteLLM.
+    """
+    if not model.startswith("anthropic/"):
+        return
+    if env_file.exists():
+        load_dotenv(env_file, override=False)
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise SystemExit(
+            f"ANTHROPIC_API_KEY is not set, and model {model!r} needs it. "
+            f"Put it in {env_file} (gitignored) as ANTHROPIC_API_KEY=..., "
+            "or set it in the environment."
+        )
+
+
 def benchmark_grammaticality(
     infile: str,
     outfile: str,
     model: str = "anthropic/claude-sonnet-4-20250514",
     api_base: Optional[str] = None,
+    env_file: Path = DEFAULT_ENV_FILE,
 ) -> None:
     """Check grammaticality of every target and distractor word in a save_delim CSV.
 
@@ -82,7 +108,10 @@ def benchmark_grammaticality(
         outfile: Path for the results CSV.
         model: liteLLM model string.
         api_base: Optional API base URL.
+        env_file: File to read the API key from if it isn't in the environment.
     """
+    require_api_key(model, env_file)
+
     parent = os.path.dirname(outfile)
     if parent:
         os.makedirs(parent, exist_ok=True)

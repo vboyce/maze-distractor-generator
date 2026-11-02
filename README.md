@@ -142,7 +142,7 @@ Other options for quality control:
   ```sh
   .venv/bin/python check_distractors.py out.csv judgments.csv --model anthropic/claude-sonnet-4-20250514
   ```
-  This makes one paid API call per word. It needs `requirements-optional.txt` and the provider's API key in the environment.
+  This makes one paid API call per word. It needs `requirements-optional.txt` and the provider's API key. For Anthropic models, the key is read from the environment or, if it isn't set there, from a `.env` file in the repository root (`ANTHROPIC_API_KEY=...`; keep it out of git). Without a key, the script stops before making any calls.
 - Screen critical items (or all items) yourself by running through them in the task.
 - Pilot on a few participants and regenerate distractors that several of them get wrong.
 
