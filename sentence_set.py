@@ -11,6 +11,12 @@ FALLBACK_RANKINGS = ("gap", "min_surprisal")
 NO_DISTRACTOR = "NO-DISTRACTOR"
 
 
+def is_no_distractor(shown):
+    """Whether a distractor as shown (with punctuation copied from its real
+    word) is the NO_DISTRACTOR marker."""
+    return strip_punct(shown) == NO_DISTRACTOR
+
+
 # Words that are always determiners, so a noun phrase is open after them;
 # "that", "this" and "her" are as often something else. From Amani
 # Maina-Kilaas's maze-distractor-generator (generation.py), GPL-3.
@@ -321,12 +327,15 @@ class Sentence_Set:
         self.label_options = {}
         for label in self.labels.values():
             if locked and label.lab in locked:
-                bare = strip_punct(locked[label.lab]).lower()
-                label.distractor = bare
+                if is_no_distractor(locked[label.lab]):
+                    # The marker is kept as is; it is not a word, so it is not counted or avoided.
+                    label.distractor = NO_DISTRACTOR
+                else:
+                    label.distractor = strip_punct(locked[label.lab]).lower()
+                    banned.append(label.distractor)
+                    repeats.increment(label.distractor)
                 label.distractor_surprisals = None  # kept from an earlier run, not scored in this one
-                banned.append(bare)
-                repeats.increment(bare)
-                self.label_options[label.lab] = [bare]
+                self.label_options[label.lab] = [label.distractor]
             elif num_options > 1:
                 opts = label.choose_top_n_distractors(num_options, backend, d, threshold_func, params, banned, self.id, log_writer)
                 if opts:

@@ -63,3 +63,9 @@ class TestSeedRepeats:
         locked_by_item = {"1": {"1": "Dog"}, "2": {"1": "fish,"}}
         seed_repeats_from_locked(repeats, locked_by_item, rejected_items={"2"})
         assert repeats.distractors == {"dog": 1}
+
+
+def test_a_kept_no_distractor_is_not_counted_as_a_used_distractor():
+    repeats = Repeatcounter(1)
+    seed_repeats_from_locked(repeats, {"1": {"1": "NO-DISTRACTOR.", "2": "dog"}}, rejected_items=set())
+    assert repeats.distractors == {"dog": 1}

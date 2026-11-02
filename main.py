@@ -10,6 +10,7 @@ from output import (save_delim, save_json, save_distractor_summary, save_longfor
                     updated_longform_rows, write_longform_rows, assign_distractors_from_longform,
                     report_rows, save_report)
 from utils import strip_punct
+from sentence_set import is_no_distractor
 from run_record import default_record_path, make_run_record, save_run_record
 
 SURPRISAL_LOG_HEADER = ["record_type", "sentence_set_id", "label", "prefix", "word", "surprisal_target",
@@ -54,7 +55,8 @@ def seed_repeats_from_locked(repeats, locked_by_item, rejected_items):
         if item_num in rejected_items:
             continue
         for dist_word in locked.values():
-            repeats.increment(strip_punct(dist_word).lower())
+            if not is_no_distractor(dist_word):
+                repeats.increment(strip_punct(dist_word).lower())
 
 
 def log_shortfalls(rows):

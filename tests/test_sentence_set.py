@@ -439,3 +439,25 @@ class TestChosenSurprisals:
             ss.do_distractors(None, mock_dict(["dog"]), threshold_func, PARAMS, Repeatcounter(0), locked={1: "run"})
         assert ss.labels[1].distractor_surprisals is None
         assert ss.labels[2].distractor_surprisals == [30.0]
+
+
+class TestKeptNoDistractor:
+    """A position left as NO-DISTRACTOR and not rejected in review comes back
+    from the review file as locked; it must stay the exact marker."""
+
+    def run_with_label_1_kept_as(self, kept):
+        ss = Sentence_Set("1")
+        sentence = Sentence(["Birds", "Sing", "loudly."], ["0", "1", "2"], "1", "x")
+        sentence.surprisal = {"1": 2.0, "2": 2.0}
+        ss.add(sentence)
+        ss.make_labels()
+        repeats = Repeatcounter(0)
+        with patch("sentence_set.get_surprisal", return_value=40.0):
+            ss.do_distractors(None, mock_dict(["acid"]), threshold_func, PARAMS, repeats, locked={"1": kept})
+        return sentence.distractor_sentence, repeats.distractors
+
+    def test_it_is_shown_as_the_marker(self):
+        assert self.run_with_label_1_kept_as("NO-DISTRACTOR")[0] == "x-x-x NO-DISTRACTOR acid."
+
+    def test_it_is_not_counted_as_a_used_distractor(self):
+        assert self.run_with_label_1_kept_as("NO-DISTRACTOR")[1] == {"acid": 1}

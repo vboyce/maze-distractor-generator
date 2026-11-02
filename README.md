@@ -82,7 +82,7 @@ Surprisal is calculated by tokenizing `prefix + " " + word`, comparing with the 
 
 ## Parameters
 
-Parameters come from a file passed with `-p` (colon-separated `key: value` lines; values are Python literals, so strings need quotes; `#` starts a comment). `model` is required (there is no default model); keys you leave out get the defaults below. `--model` on the command line counts as giving it. An unknown key is an error, so a typo or an out-of-date key can't be silently ignored. See `params.txt` for an example.
+Parameters come from a file passed with `-p` (`key: value` lines, split at the first colon, so a value may contain colons; values are Python literals, so strings need quotes; a line starting with `#` is a comment, and blank lines are skipped). `model` is required (there is no default model); keys you leave out get the defaults below. `--model` on the command line counts as giving it. An unknown key is an error, so a typo or an out-of-date key can't be silently ignored. See `params.txt` for an example.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -114,7 +114,7 @@ Parameters come from a file passed with `-p` (colon-separated `key: value` lines
 
 | `backend` | Models |
 |---|---|
-| `transformers` | Any Hugging Face causal or masked LM; the type is detected from the model config. |
+| `transformers` | Any Hugging Face causal or masked LM; the type is detected from the model config (if it can't be, the run stops with an error: choose one of the next two). |
 | `transformers_causal` | Force causal (GPT-2, Pythia, Llama, …). |
 | `transformers_masked` | Force masked (BERT, RoBERTa, …). A multi-token word is filled in left to right. |
 | `litellm` | API models via [liteLLM](https://docs.litellm.ai/). The provider must return log-probabilities for the prompt (`echo=True`), which many chat APIs don't. Set `prepend_start_token: False`. Needs `requirements-optional.txt`. |

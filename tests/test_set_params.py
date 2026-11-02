@@ -165,3 +165,32 @@ def test_shown_case_is_checked_by_default():
 def test_check_shown_case_must_be_true_or_false():
     with pytest.raises(ValueError, match="check_shown_case"):
         set_params({"model": "gpt2", "check_shown_case": "yes"})
+
+
+# --- Parameter files: each line is split at its first colon ---
+
+def test_a_value_may_contain_a_colon(tmp_path):
+    f = tmp_path / "params.txt"
+    f.write_text('model: "ollama/llama3:8b"\n')
+    assert set_params(str(f))["model"] == "ollama/llama3:8b"
+
+
+def test_a_value_with_a_stray_colon_is_an_error(tmp_path):
+    """"100: 5" is not a Python literal, so it can't be read as 100."""
+    f = tmp_path / "params.txt"
+    f.write_text('model: "gpt2"\nnum_to_test: 100: 5\n')
+    with pytest.raises(ValueError, match="num_to_test"):
+        set_params(str(f))
+
+
+def test_a_line_without_a_colon_is_an_error(tmp_path):
+    f = tmp_path / "params.txt"
+    f.write_text('model: "gpt2"\nnum_to_test 100\n')
+    with pytest.raises(ValueError, match="line 2"):
+        set_params(str(f))
+
+
+def test_blank_lines_are_ignored(tmp_path):
+    f = tmp_path / "params.txt"
+    f.write_text('model: "gpt2"\n\n   \nseed: 3\n')
+    assert set_params(str(f))["seed"] == 3

@@ -87,7 +87,7 @@ class LiteLLMBackend:
         for i in word_token_indices:
             lp = token_logprobs[i]
             if lp is None:
-                continue
+                raise ValueError(f"The API returned no log-probability for token {tokens[i]!r} of {word!r}")
             if not np.isfinite(lp):
                 raise ValueError(
                     f"Model assigned zero probability to token {repr(tokens[i])} "

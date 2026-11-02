@@ -12,7 +12,8 @@ __all__ = [
 
 
 def _detect_transformers_type(model_name: str, revision: str = None) -> str:
-    """Use the model config to determine whether a model is causal or masked."""
+    """Use the model config to determine whether a model is causal or masked;
+    raise if it says neither."""
     from transformers import AutoConfig
     config = AutoConfig.from_pretrained(model_name, revision=revision)
     architectures = getattr(config, "architectures", []) or []
@@ -21,11 +22,13 @@ def _detect_transformers_type(model_name: str, revision: str = None) -> str:
             return "causal"
         if "MaskedLM" in arch:
             return "masked"
-    logging.warning(
-        "Could not auto-detect model type from architectures %s; defaulting to causal",
-        architectures,
+    # Guessing would be worse than stopping: a model loaded under the wrong
+    # class can get a newly initialized, random output layer.
+    raise ValueError(
+        f"Could not tell whether {model_name} is a causal or masked language model from its "
+        f"architectures {architectures}. If it has a language-model head, set backend to "
+        f'"transformers_causal" or "transformers_masked".'
     )
-    return "causal"
 
 
 def load_surprisal_model(

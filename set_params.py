@@ -1,4 +1,3 @@
-import csv
 import logging
 import ast
 
@@ -44,13 +43,23 @@ OPTIONAL_KEYS = {"include_words", "exclude_words"}
 
 
 def _read_params_file(file):
-    """Parse a colon-delimited params file into a dict."""
+    """Parse a params file into a dict: one `key: value` per line, split at
+    the first colon (so a value may contain colons), the value a Python
+    literal. Blank lines and lines starting with # are skipped."""
     params = {}
     with open(file, "r") as f:
-        reader = csv.reader(f, delimiter=":", quotechar='"')
-        for row in reader:
-            if row and not row[0].startswith("#"):
-                params[row[0].strip()] = ast.literal_eval(row[1].strip())
+        for number, line in enumerate(f, start=1):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if ":" not in line:
+                raise ValueError(f"{file}, line {number}: expected 'key: value', got {line!r}")
+            key, value = (part.strip() for part in line.split(":", 1))
+            try:
+                params[key] = ast.literal_eval(value)
+            except (ValueError, SyntaxError) as error:
+                raise ValueError(f"{file}, line {number}: the value of {key} is not a Python literal "
+                                 f"(strings need quotes): {value!r}") from error
     return params
 
 
