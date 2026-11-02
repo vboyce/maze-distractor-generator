@@ -28,6 +28,8 @@ REAL_WORDS = {"cat", "who", "the", "dog", "scared", "hid.", "sing", "in", "morni
 
 
 class FakeBackend:
+    model_commit = None
+
     def get_surprisal(self, prefix, word, base=2.0):
         return 2.0 if word in REAL_WORDS else 40.0
 
@@ -306,6 +308,8 @@ def test_first_names_are_not_used_as_distractors_by_default(tmp_path):
 class CaseSensitiveBackend:
     """Real words are unsurprising. "acid" and "angel" meet the target (25)
     in lowercase but not capitalized; "actor" falls 5 short in either case."""
+
+    model_commit = None
 
     def get_surprisal(self, prefix, word, base=2.0):
         if word.lower() in {"birds", "sing", "sing."}:

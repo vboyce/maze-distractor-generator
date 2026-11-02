@@ -5,6 +5,7 @@ Examples:
     python distract.py input/test_in.csv output/out.csv -p params.txt
     python distract.py input/test_in.csv output/stimuli.js --format json --module-name stimuli
     python distract.py input/test_in.csv output/out.csv --longform output/review.csv --num-options 3
+    python distract.py input/test_in.csv output/out.csv --report output/report.csv
     python distract.py input/test_in.csv --rejection-file output/review.csv --longform output/review_2.csv
 """
 import argparse
@@ -41,6 +42,12 @@ def build_parser():
                         help="write every candidate's surprisal to FILE (CSV)")
     parser.add_argument("--summary", default=None, metavar="FILE",
                         help="write a count of how often each distractor was used to FILE (CSV)")
+    parser.add_argument("--report", default=None, metavar="FILE",
+                        help="write each position's word and distractor frequencies (Zipf), surprisal "
+                             "target, distractor surprisal and whether it met the target to FILE (CSV)")
+    parser.add_argument("--run-record", default=None, metavar="FILE",
+                        help="write the run record (model, versions, parameters, file checksums; JSON) to "
+                             "FILE instead of beside the output (OUTPUT.run.json)")
     return parser
 
 
@@ -60,6 +67,8 @@ def main(argv=None):
         rejection_file=args.rejection_file,
         num_options=args.num_options,
         longform_outfile=args.longform,
+        report_outfile=args.report,
+        run_record_outfile=args.run_record,
     )
 
 

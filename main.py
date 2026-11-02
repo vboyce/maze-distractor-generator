@@ -7,8 +7,10 @@ from limit_repeats import Repeatcounter
 from get_surprisal import get_surprisal, load_surprisal_model
 from input import read_input
 from output import (save_delim, save_json, save_distractor_summary, save_longform,
-                    updated_longform_rows, write_longform_rows, assign_distractors_from_longform)
+                    updated_longform_rows, write_longform_rows, assign_distractors_from_longform,
+                    report_rows, save_report)
 from utils import strip_punct
+from run_record import default_record_path, make_run_record, save_run_record
 
 SURPRISAL_LOG_HEADER = ["record_type", "sentence_set_id", "label", "prefix", "word", "surprisal_target",
                         "actual_surprisal", "met_threshold", "surprisal_exact"]
@@ -55,9 +57,22 @@ def seed_repeats_from_locked(repeats, locked_by_item, rejected_items):
             repeats.increment(strip_punct(dist_word).lower())
 
 
+def log_shortfalls(rows):
+    """Log each report row whose distractor fell short of its target (info),
+    and how many did (one warning)."""
+    short = [row for row in rows if not row["met"]]
+    for row in short:
+        logging.info("Item %s, label %s: %s fell short of its target %.1f (surprisal %s)",
+                     row["item_num"], row["label"], row["distractor"], row["threshold"], row["surprisal"])
+    if short:
+        logging.warning("%d of %d positions fell short of their target; see --report for which",
+                        len(short), len(rows))
+
+
 def run_stuff(infile, outfile, logfile=None, summaryfile=None, parameters="params.txt", outformat="delim", module_name="stimuli",
               model_override=None, backend_override=None,
-              rejection_file=None, num_options=1, longform_outfile=None):
+              rejection_file=None, num_options=1, longform_outfile=None, report_outfile=None,
+              run_record_outfile=None):
     """Generate distractors for every sentence in infile and write them to outfile.
     
     Args:
@@ -77,9 +92,16 @@ def run_stuff(infile, outfile, logfile=None, summaryfile=None, parameters="param
             built from the updated review rows.
         num_options: Number of candidates per position to list in the longform output
         longform_outfile: Optional path for longform (one row per word position) output
+        report_outfile: Optional CSV with each position's frequencies, surprisal
+            target and distractor surprisal (see output.report_rows); in
+            rejection mode, only the regenerated positions
+        run_record_outfile: Where to write the run record (see run_record.py);
+            default <outfile>.run.json, or <longform_outfile>.run.json in
+            rejection mode with no outfile
     """
     if outformat not in ["delim", "json"]:
         raise ValueError("outfile format not understood: " + outformat)
+    run_record_outfile = run_record_outfile or default_record_path(outfile, longform_outfile)
     params = set_params(parameters, overrides={"model": model_override, "backend": backend_override})
     sents = read_input(infile)
     dict_class = getattr(importlib.import_module(params["dictionary_loc"]),
@@ -98,6 +120,7 @@ def run_stuff(infile, outfile, logfile=None, summaryfile=None, parameters="param
     backend = load_surprisal_model(params["model"], backend=params["backend"],
                                    prepend_start_token=params["prepend_start_token"],
                                    revision=params["revision"])
+    run_record = make_run_record(params, backend, d, infile, rejection_file)
     threshold_func = getattr(importlib.import_module(params["threshold_loc"]),
                              params["threshold_name"])
     repeats = Repeatcounter(params["max_repeat"])
@@ -133,11 +156,17 @@ def run_stuff(infile, outfile, logfile=None, summaryfile=None, parameters="param
         if log_handle:
             log_handle.close()
 
+    processed_sents = sents if rejected_items is None else {
+        id: ss for id, ss in sents.items() if id in rejected_items}
+    rows = report_rows(processed_sents, params["language"])
+    log_shortfalls(rows)
+    if report_outfile:
+        save_report(report_outfile, rows)
+
     if rejection_file:
         # In rejection mode, the review file is the record of every distractor:
         # merge the regenerated ones into it, then build the sentence-level output
         # (all sentences) from it.
-        processed_sents = {id: ss for id, ss in sents.items() if id in rejected_items}
         fieldnames, rows = updated_longform_rows(rejection_file, processed_sents)
         if longform_outfile:
             write_longform_rows(longform_outfile, fieldnames, rows)
@@ -157,3 +186,4 @@ def run_stuff(infile, outfile, logfile=None, summaryfile=None, parameters="param
 
     if summaryfile:
         save_distractor_summary(summaryfile, sents)
+    save_run_record(run_record_outfile, run_record)

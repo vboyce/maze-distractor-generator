@@ -32,6 +32,7 @@ class LiteLLMBackend:
                              "set prepend_start_token: False")
         if revision is not None:
             raise ValueError("The litellm backend cannot pin a model revision; leave revision unset")
+        self.model_commit = None  # for the run record: the provider sets the model version
         try:
             import litellm  # noqa: F401
         except ImportError:

@@ -92,6 +92,15 @@ class TestCausalLMBackend:
         expected = hand_surprisal(tiny_model, ids("The"), ids("cat", "sat."))
         assert backend.get_surprisal("The", "cat sat.") == pytest.approx(expected)
 
+    def test_a_model_from_a_local_directory_has_no_commit(self, tiny_lm_dir):
+        assert CausalLMBackend(tiny_lm_dir).model_commit is None
+
+    def test_the_commit_is_the_one_transformers_resolved(self, tiny_lm_dir):
+        """For a Hugging Face model, transformers notes the commit it downloaded."""
+        backend = CausalLMBackend(tiny_lm_dir)
+        backend.model.config._commit_hash = "50f5173d"
+        assert backend.model_commit == "50f5173d"
+
     def test_text_longer_than_the_model_reads_raises(self, tiny_lm_dir):
         backend = CausalLMBackend(tiny_lm_dir)
         prefix = " ".join(["cat"] * MAX_POSITIONS)
@@ -132,3 +141,11 @@ class TestStartTokenOnOtherBackends:
         with pytest.raises(ValueError, match="revision"):
             load_surprisal_model("openai/some-model", backend="litellm",
                                  prepend_start_token=False, revision="abc123")
+
+
+def test_a_litellm_model_has_no_commit(monkeypatch):
+    """The provider sets the model version; there is no commit to record."""
+    import types
+    monkeypatch.setitem(sys.modules, "litellm", types.ModuleType("litellm"))
+    backend = load_surprisal_model("openai/some-model", backend="litellm", prepend_start_token=False)
+    assert backend.model_commit is None

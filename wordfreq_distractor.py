@@ -84,12 +84,13 @@ class wordfreq_dict(distractor_dict):
             )
         exclude = params.get("exclude_words", EXCLUDED_WORDS)
 
+        self.word_list_files = []  # every word list read, in order, for the run record
         freqs = wordfreq.get_frequency_dict(self.language)
-        exclusions = set(read_word_list(exclude)) if exclude is not None else set()
+        exclusions = set(self.read_word_list(exclude)) if exclude is not None else set()
         if params.get("avoid_names_and_abbreviations", False):
             for path in NAMES_AND_ABBREVIATIONS:
-                exclusions.update(read_word_list(path))
-        words = (set(read_word_list(include)) & set(freqs)) - exclusions
+                exclusions.update(self.read_word_list(path))
+        words = (set(self.read_word_list(include)) & set(freqs)) - exclusions
         self.words = []
         for word in sorted(words):
             if self.allowed(word):
@@ -98,13 +99,18 @@ class wordfreq_dict(distractor_dict):
         self.frequency = {word.text: word.freq for word in self.words}
         self.rng = random.Random(params.get("seed", 0))  # for candidate_order "random"
         if params.get("check_often_capitalized", False):
-            self.often_capitalized = set(read_word_list(OFTEN_CAPITALIZED))
+            self.often_capitalized = set(self.read_word_list(OFTEN_CAPITALIZED))
         else:
             self.often_capitalized = set()
         if params.get("break_noun_phrases", False):
-            self.noun_phrase_breakers = set(read_word_list(NOUN_PHRASE_BREAKERS))
+            self.noun_phrase_breakers = set(self.read_word_list(NOUN_PHRASE_BREAKERS))
         else:
             self.noun_phrase_breakers = set()
+
+    def read_word_list(self, path):
+        """read_word_list(path), noting path in self.word_list_files."""
+        self.word_list_files.append(path)
+        return read_word_list(path)
 
     def allowed(self, word):
         """Whether a word may be used as a distractor."""

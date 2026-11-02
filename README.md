@@ -63,6 +63,8 @@ Here the articles of the relative clauses get the same distractor, as do the ver
 - **`--format json`**: a JavaScript module, `export const <module-name> = [...]`. Each item has `item_type`, `id`, `sent`, `distractor` and `labels`. The `sent` / `distractor` keys match what the jspsych-maze demos read.
 - **`--longform FILE`**: also write one row per word position (`type, item_num, label, prefix, real_word, distractor, options, rejected`), for review (see below).
 - **`--summary FILE`**: how many times each distractor was used.
+- **`--report FILE`**: one row per word after the first (`type, item_num, label, position, word, distractor, word_zipf, distractor_zipf, threshold, surprisal, met`): the word's and the distractor's [Zipf frequency](https://github.com/rspeer/wordfreq#usage), the surprisal target, the distractor's exact surprisal there (the lowest of the forms scored, see "How it works"), and whether it met the target. A `NO-DISTRACTOR` position has no distractor frequency or surprisal. In rejection mode, only the regenerated positions are reported. Whether or not you ask for the report, a run that leaves positions short of their target ends with one warning counting them; the positions themselves are logged at info level.
+- **Run record** (always written): a JSON file beside the output, `OUTPUT.run.json` (in rejection mode with no output, beside the `--longform` file; `--run-record FILE` writes it elsewhere). It holds what is needed to reproduce the run: the generator's git commit and whether its files had uncommitted changes; the model, its `revision`, and the commit Hugging Face resolved it to (`null` for a model in a local directory or a `litellm` model); the Python, torch, transformers and wordfreq versions; every parameter, defaults included; and the SHA-256 of the input file, of every word list read, and of the rejection file. A run with no output and no `--longform` stops with an error before the model loads, since there is nowhere to put the record.
 - **`--log FILE`**: every candidate that was tried, with its surprisal and whether it met the target. Useful for debugging or for choosing distractors by hand. With a causal model, a candidate of several tokens whose first token already meets the target is not scored further, so its `actual_surprisal` is a lower bound; `surprisal_exact` is `False` on those rows.
 
 Distractors get the same leading/trailing punctuation and capitalization as the word they replace, so punctuation and case don't give the answer away.
@@ -102,7 +104,7 @@ Parameters come from a file passed with `-p` (colon-separated `key: value` lines
 | `avoid_names_and_abbreviations` | `True` for English, `False` otherwise | Never use a word readers know only as a first name or an abbreviation (`word_lists/first_names.txt`, `word_lists/abbreviations.txt`; see `word_lists/README.md`). English only: `True` with another language is an error. |
 | `check_often_capitalized` | `True` for English, `False` otherwise | A word on `word_lists/often_capitalized.txt` must meet the target capitalized too, however it is shown (see `word_lists/README.md`). English only: `True` with another language is an error. |
 | `break_noun_phrases` | `True` for English, `False` otherwise | After a determiner, only try words on `word_lists/noun_phrase_breakers.txt`, which can't continue a noun phrase (see "How it works" and `word_lists/README.md`). English only: `True` with another language is an error. |
-| `dictionary_loc`, `dictionary_class` | `"wordfreq_distractor"`, `"wordfreq_dict"` | Module and class that provide candidate words and frequencies. (`wordfreq_English_dict` still works, for English only.) With `check_often_capitalized`, the class must also have an `often_capitalized` attribute, the set of words that must meet the target capitalized; with `break_noun_phrases`, a `noun_phrase_breakers` attribute, the set of words that may follow a determiner. Without them, the run stops with an error before the model loads. |
+| `dictionary_loc`, `dictionary_class` | `"wordfreq_distractor"`, `"wordfreq_dict"` | Module and class that provide candidate words and frequencies. (`wordfreq_English_dict` still works, for English only.) With `check_often_capitalized`, the class must also have an `often_capitalized` attribute, the set of words that must meet the target capitalized; with `break_noun_phrases`, a `noun_phrase_breakers` attribute, the set of words that may follow a determiner. Without them, the run stops with an error before the model loads. If the class has a `word_list_files` attribute (the paths of the word lists it read), their checksums go in the run record; if not, the record has none, with a warning. |
 | `threshold_loc`, `threshold_name` | `"wordfreq_distractor"`, `"get_thresholds"` | Module and function that turn the real words into length/frequency bounds. |
 
 `--model` and `--backend` on the command line override the file.
@@ -171,7 +173,8 @@ Frequencies for both the candidates and the real words then come from that langu
 ```python
 from main import run_stuff
 run_stuff("input.csv", "out.csv", parameters="params.txt", outformat="delim",
-          longform_outfile="review.csv", logfile="log.csv")
+          longform_outfile="review.csv", logfile="log.csv", report_outfile="report.csv")
+# also writes the run record to out.csv.run.json (run_record_outfile= to change it)
 ```
 
 `parameters` can also be a dict or `None` (all defaults, with the model then given as `model_override`).

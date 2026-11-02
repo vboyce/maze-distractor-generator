@@ -54,6 +54,12 @@ class _TransformersBase:
         self.device = torch.device(device)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, revision=revision)
 
+    @property
+    def model_commit(self):
+        """The commit transformers resolved the model to on the Hugging Face
+        Hub, for the run record; None for a model loaded from a local directory."""
+        return self.model.config._commit_hash
+
     def _load_model(self, auto_class, model_name: str, revision: str):
         """Load the model as float32 (whatever the checkpoint declares), on self.device, in eval mode."""
         model = auto_class.from_pretrained(model_name, revision=revision, dtype=torch.float32)

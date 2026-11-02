@@ -166,7 +166,9 @@ class Label:
         noun_phrase_breakers are candidates.
 
         Sets self.distractor to the first result, or NO_DISTRACTOR (with a
-        warning) if there was no candidate to try.
+        warning) if there was no candidate to try; and
+        self.distractor_surprisals to its exact surprisal after each prefix
+        (the lowest of its forms scored there), or None for NO_DISTRACTOR.
         """
         for surprisal in self.surprisals:
             self.surprisal_targets.append(max(params["min_abs"], surprisal + params["min_delta"]))
@@ -197,6 +199,8 @@ class Label:
 
         good = []
         fallback = []  # (rank, word); lower rank is better
+        # form_scores[dist][i]: {form: (surprisal, exact)} of each form of dist scored after self.prefixes[i]
+        form_scores = {}
 
         for chunk in candidate_chunks(candidates, batched=hasattr(backend, "score_candidates")):
             if len(good) >= n:
@@ -212,6 +216,7 @@ class Label:
             for k, dist in enumerate(chunk):
                 if len(good) >= n:
                     break
+                form_scores[dist] = [{form: scores[i][form] for form in forms[k][i]} for i in positions]
                 # (surprisal, target) of each form at each position
                 results = [(scores[i][form][0], self.surprisal_targets[i]) for i in positions for form in forms[k][i]]
                 if log_writer:
@@ -234,11 +239,25 @@ class Label:
         result = (good + [w for _, w in fallback])[:n]
         if result:
             self.distractor = result[0]
+            self.distractor_surprisals = self.lowest_exact_surprisals(backend, form_scores[result[0]])
         else:
             logging.warning("Item %s, label %s: no candidate distractors to try; using %s",
                             self.id, self.lab, NO_DISTRACTOR)
             self.distractor = NO_DISTRACTOR
+            self.distractor_surprisals = [None] * len(self.words)
         return result
+
+    def lowest_exact_surprisals(self, backend, form_scores):
+        """The chosen distractor's lowest surprisal over the forms scored after
+        each prefix. Batch scoring may give only a lower bound for a form that
+        met its target, so after a prefix where it did, every form is scored
+        again exactly."""
+        lowest = []
+        for prefix, scores in zip(self.prefixes, form_scores):
+            if not all(exact for _, exact in scores.values()):
+                scores = {form: (get_surprisal(backend=backend, prefix=prefix, word=form), True) for form in scores}
+            lowest.append(min(surprisal for surprisal, _ in scores.values()))
+        return lowest
 
     def choose_distractor(self, backend, dictionary, threshold_func, params, banned, sentence_set_id, log_writer=None):
         """Choose one distractor: the first candidate that meets the surprisal
@@ -304,6 +323,7 @@ class Sentence_Set:
             if locked and label.lab in locked:
                 bare = strip_punct(locked[label.lab]).lower()
                 label.distractor = bare
+                label.distractor_surprisals = None  # kept from an earlier run, not scored in this one
                 banned.append(bare)
                 repeats.increment(bare)
                 self.label_options[label.lab] = [bare]

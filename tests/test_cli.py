@@ -38,3 +38,11 @@ def test_review_options_are_passed_through():
     assert call.kwargs["rejection_file"] == "review.csv"
     assert call.kwargs["longform_outfile"] == "new.csv"
     assert call.kwargs["num_options"] == 3
+
+
+def test_report_is_passed_through():
+    assert run_cli(["in.csv", "out.csv", "--report", "report.csv"]).kwargs["report_outfile"] == "report.csv"
+
+
+def test_run_record_is_passed_through():
+    assert run_cli(["in.csv", "out.csv", "--run-record", "r.json"]).kwargs["run_record_outfile"] == "r.json"

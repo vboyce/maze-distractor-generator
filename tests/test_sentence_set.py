@@ -395,3 +395,47 @@ class TestChoosingWithCapitalization:
         with patch("sentence_set.get_surprisal",
                    side_effect=lambda backend, prefix, word: {"dog": 40.0, "Dog": 2.0}.get(word, 20.0)):
             assert lab.choose_distractor(None, mock_dict(["dog", "rat"]), threshold_func, PARAMS, [], "1") == "rat"
+
+
+# --- The chosen distractor's surprisals, for the report ---
+
+class LowerBoundBackend:
+    """Batch scoring that gives only a lower bound (the target) for every candidate."""
+
+    def score_candidates(self, prefix, candidates, exact_below):
+        return [(exact_below, False) for _ in candidates]
+
+
+class TestChosenSurprisals:
+    def test_the_chosen_distractor_s_surprisal_after_each_prefix_is_kept(self):
+        """Gap ranking chooses "alpha", which scores 24 after "The" and 45 after "A"."""
+        ss = make_two_sentence_set()
+        with patch("sentence_set.get_surprisal", side_effect=gap_surprisal):
+            ss.labels[1].choose_distractor(None, mock_dict(["alpha", "bravo"]), threshold_func, PARAMS, [], "1")
+        assert ss.labels[1].distractor_surprisals == [24.0, 45.0]
+
+    def test_the_lowest_of_the_forms_scored_is_kept(self):
+        """"Cat" is capitalized, so "dog" is scored as "dog" and as "Dog"."""
+        lab = make_label(word="Cat")
+        scores = {"dog": 40.0, "Dog": 30.0}
+        with patch("sentence_set.get_surprisal", side_effect=lambda backend, prefix, word: scores[word]):
+            lab.choose_distractor(None, mock_dict(["dog"]), threshold_func, PARAMS, [], "1")
+        assert lab.distractor_surprisals == [30.0]
+
+    def test_a_lower_bound_from_batch_scoring_is_rescored_exactly(self):
+        lab = make_label()
+        with patch("sentence_set.get_surprisal", return_value=50.0):
+            lab.choose_distractor(LowerBoundBackend(), mock_dict(["dog"]), threshold_func, PARAMS, [], "1")
+        assert lab.distractor_surprisals == [50.0]
+
+    def test_no_distractor_has_no_surprisals(self):
+        lab = make_label()
+        lab.choose_distractor(None, mock_dict([]), threshold_func, PARAMS, [], "1")
+        assert lab.distractor_surprisals == [None]
+
+    def test_a_locked_label_has_no_surprisals_from_this_run(self):
+        ss = make_sentence_set()
+        with patch("sentence_set.get_surprisal", return_value=30.0):
+            ss.do_distractors(None, mock_dict(["dog"]), threshold_func, PARAMS, Repeatcounter(0), locked={1: "run"})
+        assert ss.labels[1].distractor_surprisals is None
+        assert ss.labels[2].distractor_surprisals == [30.0]

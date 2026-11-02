@@ -3,9 +3,13 @@ import os
 from collections import Counter
 
 import json
+import wordfreq
 from utils import strip_punct, copy_punct
+from sentence_set import NO_DISTRACTOR
 
 LONGFORM_FIELDNAMES = ["type", "item_num", "label", "prefix", "real_word", "distractor", "options", "rejected"]
+REPORT_FIELDNAMES = ["type", "item_num", "label", "position", "word", "distractor", "word_zipf", "distractor_zipf",
+                     "threshold", "surprisal", "met"]
 
 
 def save_delim(outfile, all_sentences):
@@ -215,3 +219,57 @@ def save_distractor_summary(outfile, all_sentences):
         writer.writerow(["distractor", "count"])
         for word in sorted(counts):
             writer.writerow([word, counts[word]])
+
+
+def report_rows(all_sentences, language):
+    """One row per word after the first, for every label whose distractor was
+    chosen in this run (not one kept from an earlier run in rejection mode):
+    the word and its distractor as shown, their Zipf frequencies in language,
+    the surprisal target, the distractor's surprisal there (the lowest of the
+    forms scored), and whether it met the target. A NO_DISTRACTOR position
+    has no distractor frequency or surprisal, and did not meet its target.
+
+    all_sentences: dictionary of sentence_set objects, each with its labels
+        made and its distractors chosen.
+    """
+    rows = []
+    for sentence_set in all_sentences.values():
+        # A label's targets and surprisals are in the order of the sentences
+        # it appears in (see Sentence_Set.make_labels).
+        times_seen = Counter()
+        for sentence in sentence_set.sentences:
+            for i in range(1, len(sentence.labels)):
+                lab = sentence.labels[i]
+                label = sentence_set.labels[lab]
+                k = times_seen[lab]
+                times_seen[lab] += 1
+                if label.distractor_surprisals is None:
+                    continue
+                surprisal = label.distractor_surprisals[k]
+                threshold = label.surprisal_targets[k]
+                rows.append({
+                    "type": sentence.tag,
+                    "item_num": sentence.id,
+                    "label": lab,
+                    "position": i,
+                    "word": sentence.words[i],
+                    "distractor": sentence.distractors[i],
+                    "word_zipf": wordfreq.zipf_frequency(strip_punct(sentence.words[i]), language),
+                    "distractor_zipf": ("" if label.distractor == NO_DISTRACTOR
+                                        else wordfreq.zipf_frequency(label.distractor, language)),
+                    "threshold": threshold,
+                    "surprisal": "" if surprisal is None else surprisal,
+                    "met": surprisal is not None and surprisal >= threshold,
+                })
+    return rows
+
+
+def save_report(outfile, rows):
+    """Write report_rows to a CSV file."""
+    parent = os.path.dirname(outfile)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    with open(outfile, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=REPORT_FIELDNAMES)
+        writer.writeheader()
+        writer.writerows(rows)

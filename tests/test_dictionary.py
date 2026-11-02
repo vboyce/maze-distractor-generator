@@ -71,3 +71,12 @@ def test_only_listed_words_are_candidates_even_beyond_the_cap(tmp_path):
     window = get_thresholds(["dog"])
     assert d.get_potential_distractors(*window, params, only={"got", "him"}) == ["got"]
     assert set(d.get_potential_distractors(*window, params)) < {"cat", "cup", "sky"}
+
+
+def test_the_dictionary_lists_the_word_list_files_it_read(tmp_path):
+    include = tmp_path / "words.txt"
+    include.write_text("onto\n")
+    d = wordfreq_English_dict({"include_words": str(include), "exclude_words": None,
+                               "avoid_names_and_abbreviations": False, "check_often_capitalized": True,
+                               "break_noun_phrases": False})
+    assert d.word_list_files == [str(include), os.path.join(REPO, "word_lists", "often_capitalized.txt")]
