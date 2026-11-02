@@ -213,3 +213,6 @@ output/
 
 # RStudio project file
 *.Rproj
+
+# Claude Code instructions are kept local, not committed
+CLAUDE.md
